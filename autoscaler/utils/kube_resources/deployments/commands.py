@@ -1,7 +1,7 @@
 import time
 import yaml
 
-from pykube.core import apps_api as api
+from autoscaler.utils.kube_resources import apps_api as api
 
 
 def _get_deployment_info(deployment):

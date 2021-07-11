@@ -1,7 +1,7 @@
 import time
 import yaml
 
-from pykube.core import autoscaling_api as api
+from autoscaler.utils.kube_resources import autoscaling_api as api
 
 
 def _get_hpa_info(hpa):

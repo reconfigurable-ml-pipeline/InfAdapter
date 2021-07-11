@@ -1,7 +1,7 @@
 import time
 import yaml
 
-from pykube.core import core_api as api
+from autoscaler.utils.kube_resources import core_api as api
 
 
 def _get_pod_info(p):

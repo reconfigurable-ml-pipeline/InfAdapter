@@ -1,4 +1,4 @@
-from pykube.core import core_api as api
+from autoscaler.utils.kube_resources import core_api as api
 import yaml
 
 
