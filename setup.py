@@ -16,5 +16,6 @@ setup(
         "kubernetes==17.17.0",
         "gym==0.18.0",
         "ray[rllib]",
+        "simpy==4.0.1",
     ]
 )
