@@ -8,7 +8,7 @@ LOAD_HISTORY_LAST_N = 5
 
 
 def load_generator(pod: "Pod"):
-    step = np.pi / 100
+    step = np.pi / 50
     x = 0
     while True:
         yield ((pod.resources.requests["cpu"] + (pod.resources.limits["cpu"])) / 2) * (1 + np.sin(x)) / 2
