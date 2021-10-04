@@ -19,5 +19,6 @@ setup(
         "simpy==4.0.1",
         "matplotlib==3.4.2",
         "PyQt5==5.15.4",
+        "numpy",
     ]
 )

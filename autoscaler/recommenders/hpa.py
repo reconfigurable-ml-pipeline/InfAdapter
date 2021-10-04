@@ -2,8 +2,10 @@ import math
 import matplotlib.pyplot as plt
 import time
 
-from autoscaler.envs.simulation.entities import LOAD_HISTORY_LAST_N
+import simpy
+
 from autoscaler.envs.simulation.kube_cluster import SimulatedCluster
+from autoscaler.envs.simulation.monitoring import Monitoring
 from autoscaler.recommenders.base import RecommenderBase
 
 
@@ -11,8 +13,8 @@ class HPARecommender(RecommenderBase):
     collect_metrics_per = 15
     do_scaling_per = 15
 
-    def __init__(self, cluster: SimulatedCluster):
-        super().__init__(cluster)
+    def __init__(self, env: simpy.Environment, cluster: SimulatedCluster, monitoring: Monitoring):
+        super().__init__(env=env, cluster=cluster, monitoring=monitoring)
         self.downscale_stabilization = 5 * 60
         self.tolerance = 0.1
 
@@ -20,10 +22,13 @@ class HPARecommender(RecommenderBase):
         self.replica_history = [self.cluster.min_replicas]
         self.prev_recommendations = []
 
+    def get_state(self, cluster_metrics, application_metrics):
+        return cluster_metrics
+
     def recommend(self, state: list):
         # time.sleep(1)
         self.remove_old_recommendations()
-        last_utilization = state[LOAD_HISTORY_LAST_N-1]
+        last_utilization = state[self.cluster.cluster.LOAD_HISTORY_LAST_N-1]
         self.utilization_history.append(last_utilization)
         current_replicas = self.get_replicas(state)
         c = last_utilization / self.cluster.utilization_target
@@ -51,10 +56,12 @@ class HPARecommender(RecommenderBase):
 
         if new_replicas > max_replicas:
             new_replicas = max_replicas
+            print(f"using max replicas: {max_replicas}")
         if new_replicas < self.cluster.min_replicas:
             new_replicas = self.cluster.min_replicas
+            print(f"using min replicas: {self.cluster.min_replicas}")
         # Record the unstable recommendation
-        self.prev_recommendations.append((self.time_step, desired_replicas))
+        self.prev_recommendations.append((self.env.now, desired_replicas))
 
         self.replica_history.append(new_replicas)
         return new_replicas
@@ -64,8 +71,9 @@ class HPARecommender(RecommenderBase):
         return state[-1]
 
     def render(self, state):
-        last_utilization = state[LOAD_HISTORY_LAST_N-1]
-        print(f"calculating new recommendation at {self.time_step} ...")
+        return
+        last_utilization = state[self.cluster.cluster.LOAD_HISTORY_LAST_N-1]
+        print(f"calculating new recommendation at {self.env.now} ...")
         print("last utilization:", last_utilization)
         print("target utilization:", self.cluster.utilization_target)
         print("current replicas:", self.get_replicas(state))
@@ -74,12 +82,22 @@ class HPARecommender(RecommenderBase):
         recommendations = self.prev_recommendations[:]
         self.prev_recommendations = []
         for timestamp, recommendation in recommendations:
-            if timestamp >= self.time_step - self.downscale_stabilization:
+            if timestamp >= self.env.now - self.downscale_stabilization:
                 self.prev_recommendations.append((timestamp, recommendation))
 
     def plot_results(self):
 
         x = [i * 15 for i in range(len(self.utilization_history))]
+
+        plt.plot(
+            list(range(len(self.monitoring.request_statistics))),
+            self.monitoring.request_statistics,
+            label="mean response time per 15 seconds",
+            marker="o"
+        )
+        plt.legend()
+        plt.show()
+
         plt.xlabel("Simulation Time")
         plt.plot(x, self.utilization_history, label="utilization", marker="o")
         plt.plot(x, self.replica_history, label="replicas", marker="o")
@@ -89,3 +107,9 @@ class HPARecommender(RecommenderBase):
         )
         plt.legend()
         plt.show()
+
+        plt.plot(x[:-1], self.monitoring.records, label="mean response time per 15 seconds", marker="o")
+        plt.legend()
+        plt.show()
+
+

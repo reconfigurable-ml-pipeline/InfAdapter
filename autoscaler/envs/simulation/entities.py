@@ -1,23 +1,18 @@
 import typing
+
 import numpy as np
 from typing import List
+
+import simpy
 from kubernetes.client.models import V1ResourceRequirements
 
-
-LOAD_HISTORY_LAST_N = 5
-
-
-def load_generator(pod: "Pod"):
-    step = np.pi / 50
-    x = 0
-    while True:
-        yield ((pod.resources.requests["cpu"] + (pod.resources.limits["cpu"])) / 2) * (1 + np.sin(x)) / 2
-        x += step
+from autoscaler.envs.simulation.requests import Request
 
 
 class Pod:
     COUNTER = 1
     IP_FORMAT = "192.168.1.{}"
+    MAX_REQUESTS = 10
 
     def __init__(
             self,
@@ -28,24 +23,28 @@ class Pod:
             cpu_request: int,  # milli-cores
             memory_limit: int = None,
             cpu_limit: int = None,
-            labels: dict = None,
-            env_vars: dict = None,
             namespace: str = "autoscaling_sim",
     ):
         self.ip = ip
         self.name = name
         self.image = image
         self.namespace = namespace
-        self.labels = labels
         self.resources = V1ResourceRequirements(
             limits={"cpu": cpu_limit, "memory": memory_limit},
             requests={"cpu": cpu_request, "memory": memory_request}
         )
-        self.env_vars = env_vars
-        self.load_generator = load_generator(self)
+        self.request_count = 0
 
-    def calculate_load(self):
-        return next(self.load_generator)
+    def process_request(self, env: simpy.Environment, request: Request) -> dict:
+        self.request_count += 1
+        yield env.timeout(max(.1, np.random.random() / 2))
+        # calculate response time, missing deadline (maybe through load balancer)
+        self.request_count -= 1
+        request.done(env.now)
+        return {"success": True}
+
+    def calculate_cpu_load(self):
+        return (self.request_count / self.MAX_REQUESTS) * self.resources.requests["cpu"]
 
     def replicate(self) -> "Pod":
         Pod.COUNTER += 1
@@ -54,27 +53,28 @@ class Pod:
             name=self.name,
             image=self.image,
             namespace=self.namespace,
-            labels=self.labels.copy() if self.labels else None,
             cpu_request=self.resources.requests["cpu"],
             memory_request=self.resources.requests["memory"],
             cpu_limit=self.resources.limits["cpu"],
             memory_limit=self.resources.limits["memory"],
-            env_vars=self.env_vars.copy() if self.env_vars else None
         )
 
 
-# class Service:
-#     def __init__(self, ip: str):
-#         self.pods: List[Pod] = []
-#         self.ip = ip
-#         self.idx = 0
-#
-#     def add_pod(self, pod: Pod):
-#         self.pods.append(pod)
-#
-#     def balance(self, request):
-#         self.pods[self.idx].respond(request)
-#         self.idx = (self.idx + 1) % len(self.pods)
+class Service:
+    def __init__(self, pod_name: str, ip: str, port: int):
+        self.pod_name = pod_name
+        self.pods: List[Pod] = []
+        self.ip = ip
+        self.port = port
+        self.idx = -1
+
+    def add_pod(self, pod: Pod):
+        self.pods.append(pod)
+
+    def balance(self, env: simpy.Environment, request: Request) -> dict:
+        self.idx = (self.idx + 1) % len(self.pods)
+        response = self.pods[self.idx].process_request(env, request)
+        return response
 
 
 class HPA:
@@ -111,6 +111,10 @@ class Worker:
         self.pods: List[Pod] = []
 
     def add_job(self, job: Pod):
+        cpu_request = job.resources.requests["cpu"]
+        mem_request = job.resources.requests["memory"]
+        self.free_mem -= mem_request
+        self.free_cpu -= cpu_request
         self.pods.append(job)
 
     def has_job(self, job: Pod):
@@ -120,13 +124,21 @@ class Worker:
         self.pods.remove(job)
 
     def register(self, master: "Master"):
-        master.register(self)
+        self.master = master
+        self.env = self.master.env
+        self.master.register(self)
+
+    def process_request(self, request: Request):
+        service = self.master.get_service_object(request.pod_name)
+        response = service.balance(self.env, request)
+        return response
 
 
 class Master:
-    def __init__(self):
+    def __init__(self, env: simpy.Environment):
+        self.env = env
         self.workers: List[Worker] = []
-        # self.services: List[Service] = []
+        self.services: List[Service] = []
         self.hpa_list: List[HPA] = []
 
     def register(self, worker: Worker):
@@ -139,6 +151,7 @@ class Master:
         for worker in self.workers:
             if worker.free_mem >= mem_request and worker.free_cpu >= cpu_request:
                 worker.add_job(job)
+                break
 
     def get_hpa_object(self, pod_name) -> typing.Optional[HPA]:
         hpa = None
@@ -148,29 +161,42 @@ class Master:
                 break
         return hpa
 
+    def get_service_object(self, pod_name) -> typing.Optional[Service]:
+        service = None
+        for svc in self.services:
+            if svc.pod_name == pod_name:
+                service = svc
+                break
+        return service
+
     def get_pod_replicas(self, pod_name):
         return self.get_hpa_object(pod_name).pods
 
     def rescale_pod(self, pod_name, new_replicas):
-
+        service = self.get_service_object(pod_name)
         pods, scaled_out = self.get_hpa_object(pod_name).rescale(new_replicas)
         if scaled_out:
             for new_replica in pods:
                 self.schedule(new_replica)
+                service.pods.append(new_replica)
         else:
             for pod_to_delete in pods:
+                service.pods.remove(pod_to_delete)
                 for worker in self.workers:
                     if worker.has_job(pod_to_delete):
                         worker.delete_job(pod_to_delete)
 
 
 class Cluster:
-    def __init__(self):
-        self.master = Master()
-        self.workers = [Worker(i, 1000, int(1e9)) for i in range(2)]
+    LOAD_HISTORY_LAST_N = 100
+
+    def __init__(self, env: simpy.Environment):
+        self.env = env
+        self.master = Master(self.env)
+        self.workers = [Worker(i, 16000, int(16e9)) for i in range(2)]
         for worker in self.workers:
             worker.register(self.master)
-        self.load_history = [0.0 for _ in range(LOAD_HISTORY_LAST_N)]  # history of average resource (CPU) utilization
+        self._cpu_load_history = [0.0 for _ in range(self.LOAD_HISTORY_LAST_N)]  # history of average CPU utilization
 
     def schedule(self, job: Pod):
         self.master.schedule(job)
@@ -178,18 +204,19 @@ class Cluster:
     def deploy_hpa(self, hpa: HPA):
         self.master.hpa_list.append(hpa)
 
+    def deploy_service(self, service: Service):
+        self.master.services.append(service)
+
     def collect_cluster_load(self, pod_name):
         load = 0
         requests = 0
-        num_replicas = 0
         for pod in self.master.get_pod_replicas(pod_name):
-            load += pod.calculate_load()
+            load += pod.calculate_cpu_load()
             requests += pod.resources.requests["cpu"]
-            num_replicas += 1
-        self.load_history.append(100 * load / requests)
+        self._cpu_load_history.append(100 * load / requests)
 
     def get_state(self, pod_name) -> list:
         hpa = self.master.get_hpa_object(pod_name)
-        load_history = self.load_history[-LOAD_HISTORY_LAST_N:]
+        load_history = self._cpu_load_history[-self.LOAD_HISTORY_LAST_N:]
         replicas = len(hpa.pods)
         return [*load_history, replicas]
