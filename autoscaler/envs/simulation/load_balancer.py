@@ -13,10 +13,9 @@ class LoadBalancer:
         self.min_replicas = cluster.min_replicas
         self._monitoring = monitoring
         self._idx = 0
-        self._counter = 1
         self._new_requests: List[Request] = []
         self._request_queue: List[Request] = []
-        self._all_requests: List[Request] = []
+        self._all_requests: List[List[Request]] = []
         self._request_count_history = []
         self._missing_deadlines = {}
 
@@ -29,12 +28,7 @@ class LoadBalancer:
     def receive_requests(self, requests: List[Request]):
         self._new_requests = requests
         self._request_count_history.append(len(self._new_requests))
-        i = 0
-        for req in self._new_requests:
-            req.ID = self._counter + i
-            i += 1
-        self._counter += len(self._new_requests)
-        self._all_requests.extend(self._new_requests[:])
+        self._all_requests.append(self._new_requests[:])
 
     @property
     def replica_count(self):
@@ -64,15 +58,15 @@ class LoadBalancer:
                     )
                 if self._request_queue:
                     request = self._request_queue.pop(0)
+                    request.done_process = self.queue_process
                     self.env.process(self.process_request(request))
 
     def run(self):
         self.queue_process = self.env.process(self.process_queue())
         while True:
             servers_capacity = self.servers_capacity
-            new_requests = self._new_requests[:]
-            for req in new_requests:
-                req.done_process = self.queue_process
+            new_requests = self._new_requests
+
             requests = self._request_queue[:servers_capacity]
             self._request_queue = self._request_queue[servers_capacity:]
             if len(requests) < servers_capacity:
@@ -81,17 +75,27 @@ class LoadBalancer:
                 self._request_queue.extend(new_requests[p:])
             else:
                 self._request_queue.extend(new_requests)
+
             for request in requests:
+                request.done_process = self.queue_process
                 self.env.process(self.process_request(request))
 
-            if self.env.now % 15 == 0 and self.env.now != 0:
+            if self.env.now % self._monitoring.cluster_metrics_collection_period == 0 and self.env.now != 0:
                 total_response_time = 0
                 count = 0
-                for req in self._all_requests:
-                    if req.arrived_at > self.env.now - 15 and req.finished_at:
-                        total_response_time += req.finished_at - req.arrived_at
-                        count += 1
-                self._monitoring.add_record(total_response_time / count)
-                self._monitoring.add_request_statistics(self._request_count_history[-15:])
+                # for reqs in self._all_requests[-self._monitoring.cluster_metrics_collection_period:]:
+                #     for req in reqs:
+                #         if req.finished_at:
+                #             total_response_time += req.finished_at - req.arrived_at
+                #             count += 1
+                if count == 0:
+                    mean_response_time = 0
+                else:
+                    mean_response_time = total_response_time / count
+                self._all_requests = []
+                self._monitoring.add_record(
+                    sum(self._request_count_history[-self._monitoring.cluster_metrics_collection_period:])
+                )
+                self._monitoring.add_request_statistics(mean_response_time)
 
             yield self.env.timeout(1)

@@ -1,4 +1,4 @@
-import numpy as np
+from settings import BASE_DIR
 
 
 class Request:
@@ -23,30 +23,47 @@ class Request:
 
 
 class RequestGenerator:
-
     def __init__(self, load_balancer, pod_name: str):
         self.env = load_balancer.env
         self.load_balancer = load_balancer
         self._pod_name = pod_name
 
-    def request_generator(self):
+        self._counter = 0
+
+        with open(f"{BASE_DIR}/autoscaler/dataset/worldcup/workload.txt", "r") as f:
+            reqs = f.readlines()
+            reqs = reqs[0].split()
+            self.workload = list(map(int, reqs))
+
+        self.request_generator = self.request_generator_()
+
+    def request_generator_(self):
+        c = 5857043
         while True:
-            yield int(
-                30 * self.load_balancer.min_replicas * (
-                        max(0.45, np.sin(self.env.now * np.pi / 100) + (np.sin(self.env.now * np.pi / 175)))
-                )
-            )
+            if c == 5891043:
+                break
+            if c % 10000 == 0:
+                print(f"day {c/60/60/24}")
+            yield self.workload[c]
+            c += 1
 
     def generate(self):
-        new_requests_count = next(self.request_generator())
+        try:
+            new_requests_count = next(self.request_generator)
+        except StopIteration:
+            return None
         new_requests = [
             Request(
-                self.env.now, self._pod_name,
-            ) for _ in range(new_requests_count)
+                self.env.now, self._pod_name, ID=self._counter + i
+            ) for i in range(new_requests_count)
         ]
+        self._counter += new_requests_count
         return new_requests
 
     def run(self):
         while True:
-            self.load_balancer.receive_requests(self.generate())
+            requests = self.generate()
+            if requests is None:
+                return
+            self.load_balancer.receive_requests(requests)
             yield self.env.timeout(1)

@@ -12,7 +12,7 @@ from autoscaler.envs.simulation.requests import Request
 class Pod:
     COUNTER = 1
     IP_FORMAT = "192.168.1.{}"
-    MAX_REQUESTS = 10
+    MAX_REQUESTS = 8
 
     def __init__(
             self,
