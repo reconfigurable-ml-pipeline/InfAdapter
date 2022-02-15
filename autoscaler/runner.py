@@ -7,6 +7,7 @@ from autoscaler.envs.simulation.monitoring import Monitoring
 from autoscaler.envs.simulation.requests import RequestGenerator
 from autoscaler.recommenders import recommenders
 from autoscaler.envs.simulation.kube_cluster import SimulatedCluster
+from autoscaler.config import get_environment_config
 
 
 class Runner:
@@ -21,13 +22,15 @@ class Runner:
         if recommender is None:
             print("Wrong input!")
             sys.exit(1)
-        self.env = simpy.Environment()
-        self.pod_name = "nginx"
+        config = get_environment_config()
+        self.env = config["env"]
+        self.pod_name = config["pod_name"]
         self.cluster = SimulatedCluster(
-            env=self.env, pod_name=self.pod_name, min_replicas=10, max_replicas=500, utilization_target=70, seed=31
+            config
         )
         self.cluster.reset()
         self.monitoring = Monitoring(cluster=self.cluster)
+        self.cluster.get_response_time = lambda: self.monitoring.request_statistics[-1]
         self.load_balancer = LoadBalancer(cluster=self.cluster, monitoring=self.monitoring)
         self.recommender = recommender(env=self.env, cluster=self.cluster, monitoring=self.monitoring)
         self.request_generator = RequestGenerator(self.load_balancer, pod_name=self.pod_name)

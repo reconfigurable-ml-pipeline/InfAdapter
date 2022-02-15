@@ -24,6 +24,9 @@ class RecommenderBase:
     def get_state(self, cluster_metrics, application_metrics):
         raise NotImplementedError
 
+    def receive_action_response(self, next_state: list, reward: float):
+        pass
+
     def run(self):
         if self.collect_metrics_per is None or self.do_scaling_per is None:
             print("Set collect_metrics_per and do_scaling_per attributes in your recommender class (in minutes)")
@@ -41,4 +44,5 @@ class RecommenderBase:
                 application_metrics
             )
             action = self.recommend(state)
-            self.cluster.step([action])
+            next_state, reward, done, info = self.cluster.step([action])
+            self.receive_action_response(next_state, reward)

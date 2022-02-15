@@ -9,21 +9,18 @@ from autoscaler.envs.simulation.entities import Cluster, Pod, HPA, Service
 
 class SimulatedCluster(gym.Env):
 
-    def __init__(
-            self,
-            env: simpy.Environment,
-            pod_name: str,
-            min_replicas: int,
-            max_replicas: int,
-            utilization_target: int,
-            seed: int = None
-    ):
-        self.env = env
-        self.pod_name = pod_name
-        self.min_replicas = min_replicas
-        self.max_replicas = max_replicas
-        self.utilization_target = utilization_target
-        self.seed = seed
+    def __init__(self, config: dict):
+        self.w_perf = 0.5
+        self.w_res = 0.5
+        self.r_max = 0.2  # seconds
+        self.get_response_time = lambda: 0  # will be attached by Runner
+
+        self.env: simpy.Environment = config["env"]
+        self.pod_name = config["pod_name"]
+        self.min_replicas = config["min_replicas"]
+        self.max_replicas = config["max_replicas"]
+        self.utilization_target = config["utilization_target"]
+        self.seed = config["seed"]
         self.time_step = 0
         self.global_time_step = 0
         self.cluster = Cluster(env=self.env)
@@ -32,10 +29,9 @@ class SimulatedCluster(gym.Env):
             high=np.array([self.max_replicas])
         )
         self.observation_space = Box(
-            low=np.array([*[0.0 for _ in range(Cluster.LOAD_HISTORY_LAST_N)], min_replicas]),
-            high=np.array([*[1.0 for _ in range(Cluster.LOAD_HISTORY_LAST_N)], max_replicas])
+            low=np.array([*[0.0 for _ in range(Cluster.LOAD_HISTORY_LAST_N)], self.min_replicas]),
+            high=np.array([*[1.0 for _ in range(Cluster.LOAD_HISTORY_LAST_N)], self.max_replicas])
         )
-        self.state = None
         np.random.seed(self.seed)
         self.np_random, seed = seeding.np_random(self.seed)
 
@@ -63,17 +59,19 @@ class SimulatedCluster(gym.Env):
             service.pods.append(replica)
         self.cluster.deploy_hpa(hpa)
         self.cluster.deploy_service(service)
-        self.state = self.cluster.get_state(self.pod_name)
-        return self.state
+        return self.get_state()
 
     def step(self, action: list):
         assert self.action_space.contains(action), f"invalid action: {action}, {type(action)}"
         self.time_step += 1
         self.global_time_step += 1
         self.cluster.master.rescale_pod(self.pod_name, action[0])
-        self.state = self.cluster.get_state(self.pod_name)
-        reward = 1  # Fixme: how to calculate reward
-        return self.state, reward, self.done, {}
+        state = self.get_state()
+        reward = -1 * (
+                self.w_perf * (1 if self.get_response_time() > self.r_max else 0) +
+                self.w_res * action[0] / self.max_replicas
+        )
+        return state, reward, self.__done, {}
 
     def render(self, mode='human'):
         state = self.cluster.get_state(self.pod_name)
@@ -89,5 +87,5 @@ class SimulatedCluster(gym.Env):
         return self.cluster.get_state(self.pod_name)
 
     @property
-    def done(self) -> bool:
-        return False
+    def __done(self) -> bool:
+        return self.time_step == 1000

@@ -16,6 +16,7 @@ setup(
         "kubernetes==17.17.0",
         "gym==0.18.0",
         "ray[rllib]",
+        "aioredis==1.3.1",
         "simpy==4.0.1",
         "matplotlib==3.4.2",
         "PyQt5==5.15.4",

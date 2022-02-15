@@ -88,7 +88,7 @@ class HPA:
     def rescale(self, new_replicas: int):
         scaled_out = False
         pods = []
-        new_replicas = min(max(new_replicas, self.min_replicas), self.max_replicas)
+        new_replicas = int(min(max(new_replicas, self.min_replicas), self.max_replicas))
         if len(self.pods) > new_replicas:
             for _ in range(len(self.pods) - new_replicas):
                 pods.append(self.pods.pop())
