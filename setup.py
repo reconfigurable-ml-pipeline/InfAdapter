@@ -1,5 +1,5 @@
 import os
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 def read():
@@ -9,7 +9,7 @@ def read():
 setup(
     name="autoscaler",
     version="0.0.1",
-    keyword="horizontal autoscaling kubernetes distributed systems reinforcement learning",
+    keyword="ML Inference Service Autoscaling Kubernetes Cloud Computing",
     packages=["autoscaler"],
     long_description=read(),
     install_requires=[
@@ -21,6 +21,6 @@ setup(
         "matplotlib==3.4.2",
         "PyQt5==5.15.4",
         "tensorflow==2.6.0",
-        "python-decouple",
+        "python-decouple==3.5",
     ]
 )

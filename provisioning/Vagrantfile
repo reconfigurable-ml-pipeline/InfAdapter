@@ -1,0 +1,36 @@
+ENV['VAGRANT_NO_PARALLEL'] = 'yes'
+
+Vagrant.configure(2) do |config|
+  config.vm.provision "shell", path: "bootstrap.sh"
+  config.vm.box_download_insecure = true
+  config.vm.define "kube-master" do |node|
+    node.vm.box = "generic/ubuntu2004"
+    node.vm.box_check_update = false
+    node.vm.box_version = "3.3.0"
+    node.vm.hostname = "kube-master"
+    node.vm.network "private_network", ip: "172.130.1.100"
+    node.vm.provider :virtualbox do |v|
+      v.name = "kube-master"
+      v.cpus =  4
+      v.memory = 4096
+    end
+    node.vm.provision "shell", path: "bootstrap_kube_master.sh"
+  end
+
+  NodeCount = 2
+  (1..NodeCount).each do |i|
+    config.vm.define "kube-worker#{i}" do |node|
+      node.vm.box = "generic/ubuntu2004"
+      node.vm.box_check_update = false
+      node.vm.box_version = "3.3.0"
+      node.vm.hostname = "kube-worker#{i}"
+      node.vm.network "private_network", ip: "172.130.1.10#{i}"
+      node.vm.provider :virtualbox do |v|
+        v.name = "kube-worker#{i}"
+        v.cpus = 8
+        v.memory = 8192
+      end
+      node.vm.provision "shell", path: "bootstrap_kube_worker.sh"
+    end
+  end
+end

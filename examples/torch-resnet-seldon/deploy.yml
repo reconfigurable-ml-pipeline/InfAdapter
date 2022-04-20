@@ -1,0 +1,38 @@
+apiVersion: machinelearning.seldon.io/v1
+kind: SeldonDeployment
+metadata:
+  name: torch-resnet
+  namespace: default
+spec:
+  name: torch-resnet
+  predictors:
+  - componentSpecs:
+    - spec:
+        containers:
+        - image: mehransi/main:torch_resnet
+          imagePullPolicy: IfNotPresent
+          name: torch-resnet
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+          env:
+            - name: TORCH_HOME
+              value: "/app/.torch"
+          ports:
+            - containerPort: 9000
+            - containerPort: 6000
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+    graph:
+      children: []
+      endpoint:
+        type: REST
+      name: torch-resnet
+      type: MODEL
+    name: torch-resnet
+    replicas: 1

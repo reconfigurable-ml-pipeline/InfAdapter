@@ -1,7 +1,7 @@
-*Horizontal Autoscaling of Web Applications in Distributed Systems*
+*a Mechanism for Auto-Configuration of ML Inference Services*
 -
 
->### Implementation of an auto-scaling recommender for containerized web applications in kubernetes cluster (simulated)
+>### Benchmark ML inference service performance metrics (like latency and throughput) under Reconfiguration options
 
 ## Simulation entities
 
@@ -14,7 +14,7 @@
     - It also forks a QueueProcess having access to request queue.
   
 - ### QueueProcess:
-    - Has access to request queue of LoadBalancer. It's responsibility is to receive request responses returned by pods, 
+    - Has access to request queue of LoadBalancer. Its responsibility is to receive request responses returned by pods, 
   and send a request in the queue to pods if exists any.
   
 - ### Monitoring:
