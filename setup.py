@@ -7,10 +7,10 @@ def read():
 
 
 setup(
-    name="autoscaler",
+    name="auto_tuner",
     version="0.0.1",
-    keyword="ML Inference Service Autoscaling Kubernetes Cloud Computing",
-    packages=["autoscaler"],
+    keyword="ML Inference Service Autoscaling Auto-Configuration Kubernetes Cloud Computing",
+    packages=["auto_tuner"],
     long_description=read(),
     install_requires=[
         "kubernetes==17.17.0",
@@ -22,5 +22,6 @@ setup(
         "PyQt5==5.15.4",
         "tensorflow==2.6.0",
         "python-decouple==3.5",
+        "kserve==0.8.0",
     ]
 )

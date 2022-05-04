@@ -3,19 +3,21 @@ import argparse
 import torch
 from torchvision import models
 import kserve
+from auto_tuner.utils.kserve_ml_inference import ModelSwitchingMixin
 
 
-class Classification(kserve.Model):
+class Classification(ModelSwitchingMixin, kserve.Model):
     def __init__(self, name, model_variant):
         super().__init__(name)
         self.current_model = model_variant
         print("cuda is available:", torch.cuda.is_available())
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.models = models.resnet
         self.load()
 
     def load(self) -> bool:
         print("Loading model", self.current_model)
-        self.model = getattr(models.resnet, self.current_model)(pretrained=True)
+        self.model = self.select_model(self.current_model)
         self.model.eval()
         print("Model is ready.")
         self.ready = True

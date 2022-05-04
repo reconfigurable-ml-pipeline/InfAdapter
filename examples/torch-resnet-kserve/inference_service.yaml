@@ -2,6 +2,9 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: torch-resnet
+  labels:
+    inference_framework: kserve
+    ML_framework: torch
 spec:
   predictor:
     containers:
