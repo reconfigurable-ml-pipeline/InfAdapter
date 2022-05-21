@@ -24,11 +24,11 @@
     ```
 - get nodePort:
     ```shell
-    SERVICE_NODE_PORT=$(kubectl get svc torch-resnet-svc -o json | jq '.spec.ports[0].nodePort')
+    SERVICE_NODE_PORT=$(kubectl get svc torch-resnet-svc -o jsonpath="{.spec.ports[0].nodePort}")
     ```
 - get IP address of a worker node
   ```shell
-  WORKER_IP=$(kubectl get node --selector='!node-role.kubernetes.io/master' -o json | jq '.items[0].status.addresses[0].address')
+  WORKER_IP=$(kubectl get node --selector='!node-role.kubernetes.io/master' -o jsonpath="{.items[0].status.addresses[0].address}")
   ```
 - test the deployment:
     ```shell

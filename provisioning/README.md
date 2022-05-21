@@ -2,14 +2,17 @@
 
 1. install required packages
 ```shell
+sudo apt-get install dkms build-essential linux-headers-`uname -r`
 curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-sudo apt-add-repository "deb [arch=amd64] https://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib"
 wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
 wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-add-repository "deb [arch=amd64] https://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib"
 sudo apt update
 sudo apt install vagrant
 sudo apt install virtualbox-6.1
+
+sudo -s 
 
 cat > /etc/vbox/networks.conf <<EOF
 * 10.0.0.0/8
@@ -17,6 +20,14 @@ cat > /etc/vbox/networks.conf <<EOF
 * 192.168.0.0/16
 * 2001::/64
 EOF
+
+cat >>/etc/hosts<<EOF
+172.130.1.100   kube_master
+172.130.1.101   kube_worker1
+172.130.1.102   kube_worker2
+EOF
+
+exit
 ```
 
 2. Edit Vagrantfile to change each VM's resource amount. [Optional]
@@ -26,10 +37,16 @@ EOF
 vagrant up
 ```
 
-4. create .kube folder to store kubernetes cluster configuration.
+4. Install and configure kubectl in your host to work with cluster.
 ```shell
 mkdir ~/.kube
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+curl -LO "https://dl.k8s.io/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+echo 'source <(kubectl completion bash)' >> ~/.bashrc
 ```
+
 5. Copy kubernetes config file to your host machine. use *admin* as password when prompt.
 ```shell
 scp root@kube_master:/etc/kubernetes/admin.conf ~/.kube/config

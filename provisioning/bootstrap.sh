@@ -55,3 +55,5 @@ cat >>/etc/hosts<<EOF
 172.130.1.102   kube_worker2
 EOF
 echo "Added all cluster nodes to /etc/hosts"
+
+export KUBELET_EXTRA_ARGS=--node-ip=$(/sbin/ip -o -4 addr list eth1 | awk '{print $4}' | cut -d/ -f1)

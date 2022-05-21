@@ -6,15 +6,8 @@ from auto_tuner.utils.kube_resources.configmaps import update_configmap
 from .constants import CURRENT_MODEL_KEY
 
 
-class ModelSwitchingMixin:
-    def select_model(self, model_name):
-        return getattr(self.models, model_name)(pretrained=True)
-
-    def switch_model(self, new_model: str):
-        self.model = self.select_model(new_model)
-
-
-def switch_model(configmap_name: str, namespace: str, service_name: str, target_port: int, new_model: str):
+def switch_model(namespace: str, service_name: str, target_port: int, new_model: str):
+    configmap_name = f"{service_name}-cm"
 
     async def request_pod_to_switch(session, endpoint):
         async with session.post(

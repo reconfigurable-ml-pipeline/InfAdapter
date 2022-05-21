@@ -235,47 +235,64 @@ def construct_inference_service(
         predictor_command: str = None,
         transformer_command: str = None,
         predictor_args: List[str] = None,
-        transformer_args: List[str] = None
+        transformer_args: List[str] = None,
+        predictor_min_replicas: int = None,
+        predictor_max_replicas: int = None,
+        transformer_min_replicas: int = None,
+        transformer_max_replicas: int = None,
 ) -> V1beta1InferenceService:
     assert predictor_image is not None or transformer_image is not None, "Specify predictor_image and/or" \
                                                                          " transformer_image"
+
+    if predictor_image:
+        predictor_spec = V1beta1PredictorSpec(
+            min_replicas=predictor_min_replicas,
+            max_replicas=predictor_max_replicas,
+            containers=[
+                _construct_container(
+                    f"predictor-{inference_service_name}",
+                    predictor_image,
+                    request_mem=predictor_request_mem,
+                    request_cpu=predictor_request_cpu,
+                    limit_mem=predictor_limit_mem,
+                    limit_cpu=predictor_limit_cpu,
+                    env_vars=predictor_env_vars,
+                    container_ports=predictor_container_ports,
+                    command=predictor_command,
+                    args=predictor_args
+                )
+            ]
+        )
+    else:
+        predictor_spec = None
+    if transformer_image:
+        transformer_spec = V1beta1TransformerSpec(
+            min_replicas=transformer_min_replicas,
+            max_replicas=transformer_max_replicas,
+            containers=[
+                _construct_container(
+                    f"transformer-{inference_service_name}",
+                    transformer_image,
+                    request_mem=transformer_request_mem,
+                    request_cpu=transformer_request_cpu,
+                    limit_mem=transformer_limit_mem,
+                    limit_cpu=transformer_limit_cpu,
+                    env_vars=transformer_env_vars,
+                    container_ports=transformer_container_ports,
+                    command=transformer_command,
+                    args=transformer_args
+                )
+            ]
+        )
+    else:
+        transformer_spec = None
 
     return V1beta1InferenceService(
         api_version=constants.KSERVE_V1BETA1,
         kind=constants.KSERVE_KIND,
         metadata=V1ObjectMeta(name=inference_service_name, namespace=namespace, labels=labels),
         spec=V1beta1InferenceServiceSpec(
-            predictor=V1beta1PredictorSpec(
-                containers=[
-                    _construct_container(
-                        f"predictor-{inference_service_name}",
-                        predictor_image,
-                        request_mem=predictor_request_mem,
-                        request_cpu=predictor_request_cpu,
-                        limit_mem=predictor_limit_mem,
-                        limit_cpu=predictor_limit_cpu,
-                        env_vars=predictor_env_vars,
-                        container_ports=predictor_container_ports,
-                        command=predictor_command,
-                        args=predictor_args
-                    )
-                ]
-            ),
-            transformer=V1beta1TransformerSpec(
-                containers=[
-                    _construct_container(
-                        f"transformer-{inference_service_name}",
-                        transformer_image,
-                        request_mem=transformer_request_mem,
-                        request_cpu=transformer_request_cpu,
-                        limit_mem=transformer_limit_mem,
-                        limit_cpu=transformer_limit_cpu,
-                        env_vars=transformer_env_vars,
-                        container_ports=transformer_container_ports,
-                        command=transformer_command,
-                        args=transformer_args
-                    )
-                ]
-            )
+            predictor=predictor_spec,
+            transformer=transformer_spec
         )
     )

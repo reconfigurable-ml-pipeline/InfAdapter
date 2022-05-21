@@ -1,0 +1,34 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: torch-resnet
+  labels:
+    inference_framework: kserve
+    ML_framework: torch
+spec:
+  predictor:
+    containers:
+      - name: kserve-resnet-container
+        image: kserve-torch-resnet:v1
+        env:
+          - name: TORCH_HOME
+            value: "/app/.torch"
+          - name: ACTIVE_MODEL
+            valueFrom:
+              configMapKeyRef:
+                name: resnet-service-cm
+                key: active_model
+        ports:
+          - containerPort: 8080
+        args:
+          - --model_name
+          - kserve_resnet
+          - --model_variant
+          - $(ACTIVE_MODEL)
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"

@@ -5,8 +5,9 @@ from .constants import CURRENT_MODEL_KEY
 
 
 def deploy_ml_service(
-        service_name: str, configmap_name: str, active_model: str, selector: dict, namespace="default", **kwargs
+        service_name: str, active_model: str, selector: dict, namespace="default", **kwargs
 ):
+    configmap_name = f"{service_name}-cm"
     node_port = kwargs.pop("node_port", None)
     if not kwargs.get("predictor_env_vars"):
         kwargs["predictor_env_vars"] = {}

@@ -1,4 +1,3 @@
-import os
 import io
 import PIL.Image
 import argparse
