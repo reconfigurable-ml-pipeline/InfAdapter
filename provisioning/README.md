@@ -1,4 +1,4 @@
-### steps to provision a Kubernetes cluster
+### steps to provision a Kubernetes cluster (based on [this video](https://www.youtube.com/watch?v=wPdIBeWJJsg))
 
 1. install required packages
 ```shell
@@ -58,6 +58,10 @@ kubectl get nodes -o wide
 ```
 > If it's not correctly set, follow [this](https://github.com/kubernetes/kubernetes/issues/63702#issuecomment-554277862).
 > Edit /etc/systemd/system/kubelet.service.d/10-kubeadm.conf for each node and set IP of each one.
+
+> In case all nodes are in NotReady state, check if kubelet is giving error on network. maybe calico is the problem
+- > curl https://docs.projectcalico.org/manifests/calico-typha.yaml -o calico.yaml
+- >kubectl apply -f calico.yaml
 
 7. Install metrics-server in cluster [Optional]
    

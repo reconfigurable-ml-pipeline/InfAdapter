@@ -56,4 +56,4 @@ cat >>/etc/hosts<<EOF
 EOF
 echo "Added all cluster nodes to /etc/hosts"
 
-export KUBELET_EXTRA_ARGS=--node-ip=$(/sbin/ip -o -4 addr list eth1 | awk '{print $4}' | cut -d/ -f1)
+echo "KUBELET_EXTRA_ARGS=--node-ip=$(/sbin/ip -o -4 addr list eth1 | awk '{print $4}' | cut -d/ -f1)" > /etc/default/kubelet
