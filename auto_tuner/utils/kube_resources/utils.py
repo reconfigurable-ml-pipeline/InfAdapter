@@ -4,7 +4,7 @@ from kubernetes.client import (
     V1Pod, V1EnvVar, V1EnvVarSource, V1ConfigMapKeySelector, V1ResourceRequirements, V1ObjectMeta, V1PodSpec,
     V1Container, V1ContainerPort, V1Deployment, V1DeploymentSpec, V1LabelSelector, V1PodTemplateSpec, V1Service,
     V1ServiceSpec, V1ServicePort, V1HorizontalPodAutoscaler, V1HorizontalPodAutoscalerSpec,
-    V1CrossVersionObjectReference, V1ConfigMap
+    V1CrossVersionObjectReference, V1ConfigMap, V1Volume, V1VolumeMount, V1ConfigMapVolumeSource
 )
 from kserve import V1beta1InferenceService, V1beta1InferenceServiceSpec, V1beta1PredictorSpec, V1beta1TransformerSpec
 from kserve.constants import constants
@@ -20,7 +20,8 @@ def _construct_container(
         env_vars: dict = None,
         container_ports: List[int] = None,
         command: str = None,
-        args: List[str] = None
+        args: List[str] = None,
+        volume_mounts: List[dict] = None,
 ) -> V1Container:
     container_kwargs = {"name": name, "image": image}
     if container_ports:
@@ -55,6 +56,12 @@ def _construct_container(
         container_kwargs.update(resources=V1ResourceRequirements(limits=limits or None, requests=requests or None))
     if env_vars:
         container_kwargs.update(env=env_vars)
+
+    mounts = []
+    if volume_mounts:
+        for vm in volume_mounts:
+            mounts.append(V1VolumeMount(**vm))
+        container_kwargs.update(volume_mounts=mounts)
     return V1Container(**container_kwargs)
 
 
@@ -240,9 +247,17 @@ def construct_inference_service(
         predictor_max_replicas: int = None,
         transformer_min_replicas: int = None,
         transformer_max_replicas: int = None,
+        volumes: List[dict] = None,
+        predictor_volume_mounts: List[dict] = None,
 ) -> V1beta1InferenceService:
     assert predictor_image is not None or transformer_image is not None, "Specify predictor_image and/or" \
                                                                          " transformer_image"
+
+    # Fixme: currently only allowing ConfigMap Volume type
+    volume_list = []
+    for vol in volumes:
+        if vol.get("config_map") is not None:
+            volume_list.append(vol)
 
     if predictor_image:
         predictor_spec = V1beta1PredictorSpec(
@@ -261,6 +276,12 @@ def construct_inference_service(
                     command=predictor_command,
                     args=predictor_args
                 )
+            ],
+            volumes=[
+                V1Volume(
+                    name=v["name"],
+                    config_map=V1ConfigMapVolumeSource(**v["config_map"])
+                ) for v in volume_list
             ]
         )
     else:
@@ -280,7 +301,8 @@ def construct_inference_service(
                     env_vars=transformer_env_vars,
                     container_ports=transformer_container_ports,
                     command=transformer_command,
-                    args=transformer_args
+                    args=transformer_args,
+                    volume_mounts=predictor_volume_mounts
                 )
             ]
         )
