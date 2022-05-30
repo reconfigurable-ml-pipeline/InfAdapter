@@ -1,0 +1,33 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: tfserving-resnet
+  labels:
+    inference_framework: kserve
+    ML_framework: tensorflow
+    model_server: tfserving
+spec:
+  predictor:
+    containers:
+      - name: tfserving_resnet_container
+        image: mehransi/main:tfserving_resnet
+        ports:
+          - containerPort: 8500
+          - containerPort: 8501
+        args:
+          - --model_config_file=/etc/tfserving/models.config
+          - --model_config_file_poll_wait_seconds=10  # Use HandleReloadConfigRequest RPC request instead
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+          - name: tfserving-resnet-vol
+            mountPath: /etc/tfserving
+    volumes:
+      - name: tfserving-resnet-vol
+        configMap:
+          name: tfserving-resnet-cm

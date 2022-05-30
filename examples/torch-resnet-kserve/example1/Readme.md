@@ -20,7 +20,7 @@ kubectl edit svc torch-resnet-pipeline-transformer-default
     find type and change from ClusterIP to NodePort
 5. get node_port
 ```shell
-NODE_PORT=$(kubectl get svc torch-resnet-pipeline-transformer-default -o jsonpath="{.spec.ports[0].nodePort}")
+NODE_PORT=$(kubectl get svc torch-resnet-transformer-default -o jsonpath="{.spec.ports[0].nodePort}")
 ```
 6.
 ```shell
