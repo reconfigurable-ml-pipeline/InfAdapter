@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime
 
@@ -51,4 +52,4 @@ if __name__ == "__main__":
     with open(f"{BASE_DIR}/auto_tuner/dataset/nasa/workload.txt", "w") as f:
         for count in requests:
             f.write(f"{count} ")
-
+    os.system("tar -jcvf workload.tbz2 workload.txt")
