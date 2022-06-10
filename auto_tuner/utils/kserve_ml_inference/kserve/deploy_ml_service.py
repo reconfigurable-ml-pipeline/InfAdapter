@@ -1,6 +1,6 @@
-from auto_tuner.utils.kube_resources.configmaps import create_configmap
-from auto_tuner.utils.kube_resources.kserve import create_inference_service
-from auto_tuner.utils.kube_resources.services import create_service as create_kubernetes_service
+from kube_resources.configmaps import create_configmap
+from kube_resources.kserve import create_inference_service
+from kube_resources.services import create_service as create_kubernetes_service
 from .constants import CURRENT_MODEL_KEY
 
 

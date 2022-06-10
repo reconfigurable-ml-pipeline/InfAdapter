@@ -5,9 +5,10 @@ using tensorflow serving multi version serving feature
 1. Install requirements
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.7.1/cert-manager.yaml
-wget https://github.com/kserve/kserve/releases/download/v0.7.0/kserve.yaml
+wget https://github.com/kserve/kserve/releases/download/v0.8.0/kserve.yaml
 ```
-> Edit kserve.yaml file, change Serverless to RawDeployment and all v1alpha2 to v1
+> Edit kserve.yaml file, change Serverless to RawDeployment,
+> then use kubectl apply -f kserve.yaml to deploy kserve on your cluster
 
 2. Deploy configmap
 ```shell

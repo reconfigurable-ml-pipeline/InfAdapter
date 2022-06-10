@@ -12,8 +12,8 @@ spec:
       - name: tfserving_resnet_container
         image: mehransi/main:tfserving_resnet
         ports:
-          - containerPort: 8500
           - containerPort: 8501
+          - containerPort: 8500
         args:
           - --model_config_file=/etc/tfserving/models.config
           - --model_config_file_poll_wait_seconds=10  # Use HandleReloadConfigRequest RPC request instead

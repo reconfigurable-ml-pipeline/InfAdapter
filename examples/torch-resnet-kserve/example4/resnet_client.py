@@ -7,9 +7,9 @@ import requests
 PORT = int(os.popen("kubectl get svc tfserving-resnet-svc -o jsonpath='{.spec.ports[0].nodePort}'").read())
 
 IP = os.popen(
-    "kubectl get node --selector='!node-role.kubernetes.io/master' -o jsonpath='{.items[0].status.addresses[0].address}"
+    "kubectl get node --selector='!node-role.kubernetes.io/master' -o jsonpath='{.items[0].status.addresses[0].address}'"
 ).read()
-PREDICT_API = f'{IP}:{PORT}/v1/models/resnet:predict'
+PREDICT_API = f'http://{IP}:{PORT}/v1/models/resnet:predict'
 
 
 def main():

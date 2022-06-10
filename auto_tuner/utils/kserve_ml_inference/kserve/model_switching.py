@@ -1,8 +1,7 @@
 import asyncio
 import aiohttp
-
-from auto_tuner.utils.kube_resources.services import get_endpoints
-from auto_tuner.utils.kube_resources.configmaps import update_configmap
+from kube_resources.services import get_endpoints
+from kube_resources.configmaps import update_configmap
 from .constants import CURRENT_MODEL_KEY
 
 
