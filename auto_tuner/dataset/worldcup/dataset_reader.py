@@ -25,6 +25,7 @@ def process_file(file_name):
         while True:
             data = f.read(struct_len)
             if not data:
+                requests.append(count_per_second)
                 break
             s = struct_unpack(data)
             dt = get_timestamp_from_record(s)
