@@ -27,6 +27,8 @@ setup(
         "protobuf==3.20.0",
         "numpy==1.19.2",
         "pillow==8.3.2",
+        "locust==2.9.0",
+        "redis==3.5.3",
         "kubernetes-python-client @ git+ssh://git@github.com/mehransi/kubernetes-python-client.git",
     ],
 

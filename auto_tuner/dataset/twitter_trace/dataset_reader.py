@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+import math
 import json
 import bz2
 from multiprocessing import Pipe, Process
@@ -8,7 +9,7 @@ from settings import BASE_DIR, TWITTER_LOGS_DIRECTORY
 
 
 def get_sublists(lst: list, n: int):
-    size = (len(lst) // n) + 1
+    size = int(math.ceil(len(lst) / n))
     return [lst[i:i + size] for i in range(0, len(lst), size)]
 
 

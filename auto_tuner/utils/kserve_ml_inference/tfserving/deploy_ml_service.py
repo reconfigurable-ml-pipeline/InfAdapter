@@ -18,6 +18,7 @@ def deploy_ml_service(
         kwargs["predictor_args"] = []
     kwargs["predictor_args"].extend([
         "--model_config_file=/etc/tfserving/models.config",
+        "--monitoring_config_file=/etc/tfserving/monitoring.config"
         # "--enable_batching=true",
         # "--batching_parameters_file=/etc/tfserving/batch.config"
     ])
@@ -39,6 +40,12 @@ def deploy_ml_service(
         namespace=namespace,
         data={
             "models.config": get_serving_configuration("resnet", "/models/resnet/", "tensorflow", active_model_version),
+            "monitoring.config": """
+                prometheus_config {
+                  enable: true,
+                  path: "/monitoring/prometheus/metrics"
+                }
+            """
             # "batch.config": get_batch_configuration(max_batch_size, kwargs["predictor_request_cpu"])
         }
     )
@@ -48,4 +55,7 @@ def deploy_ml_service(
     )
     create_kubernetes_service(
         f"{service_name}-rest", target_port=8501, namespace=namespace, expose_type="NodePort", selector=selector
+    )
+    create_kubernetes_service(
+        f"{service_name}-batch", target_port=9081, namespace=namespace, expose_type="NodePort", selector=selector
     )
