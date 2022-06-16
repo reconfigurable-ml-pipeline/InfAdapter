@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from kube_resources.deployments import get_deployment
 from kube_resources.configmaps import delete_configmap
 from kube_resources.kserve import delete_inference_service
+from kube_resources.services import delete_service as delete_kubernetes_service
 
 from auto_tuner.experiments.parameters import ParamTypes
 from auto_tuner.utils.kserve_ml_inference.tfserving import deploy_ml_service
@@ -44,7 +45,7 @@ def wait_till_pods_are_ready(deploy_name: str, namespace: str):
     deployment = get_deployment(deploy_name, namespace=namespace)
     replicas = deployment["replicas"]
     ready_replicas = deployment["status"]["ready_replicas"]
-    while ready_replicas < replicas:
+    while ready_replicas is None or ready_replicas < replicas:
         time.sleep(1)
         ready_replicas = get_deployment(deploy_name, namespace)["status"]["ready_replicas"]
 
@@ -52,6 +53,9 @@ def wait_till_pods_are_ready(deploy_name: str, namespace: str):
 def delete_previous_deployment(service_name: str, namespace: str):
     delete_inference_service(service_name, namespace=namespace)
     delete_configmap(f"{service_name}-cm", namespace)
+    delete_kubernetes_service(f"{service_name}-rest", namespace=namespace)
+    delete_kubernetes_service(f"{service_name}-grpc", namespace=namespace)
+    delete_kubernetes_service(f"{service_name}-batch", namespace=namespace)
 
 
 def save_results(prom: PrometheusClient, start_time: int):
@@ -69,5 +73,5 @@ def save_results(prom: PrometheusClient, start_time: int):
     plt.xlabel("time (seconds)")
     plt.plot(range(1, len(request_rates) + 1), list(map(lambda x: x[1], request_rates)), label="request count")
     plt.legend()
-    plt.savefig("load_monitoring.png")
+    plt.savefig("load_monitoring.png", format="png")
     plt.close()

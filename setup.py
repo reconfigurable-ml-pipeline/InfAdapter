@@ -15,7 +15,7 @@ setup(
     install_requires=[
         "gym==0.24.0",
         "ray[rllib]==1.9.0",
-        "ray[serve]==1.9.0",
+        "ray[serve]==1.10.0",
         "aioredis==1.3.1",
         "simpy==4.0.1",
         "matplotlib==3.4.2",

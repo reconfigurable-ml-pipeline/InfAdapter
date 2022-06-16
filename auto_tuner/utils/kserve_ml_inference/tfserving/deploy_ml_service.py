@@ -51,11 +51,26 @@ def deploy_ml_service(
     )
     create_inference_service(service_name, namespace, **kwargs)
     create_kubernetes_service(
-        f"{service_name}-grpc", target_port=8500, namespace=namespace, expose_type="NodePort", selector=selector
+        f"{service_name}-grpc",
+        target_port=8500,
+        port=8500,
+        namespace=namespace,
+        expose_type="NodePort",
+        selector=selector
     )
     create_kubernetes_service(
-        f"{service_name}-rest", target_port=8501, namespace=namespace, expose_type="NodePort", selector=selector
+        f"{service_name}-rest",
+        target_port=8501,
+        port=8501,
+        namespace=namespace,
+        expose_type="NodePort",
+        selector=selector
     )
     create_kubernetes_service(
-        f"{service_name}-batch", target_port=9081, namespace=namespace, expose_type="NodePort", selector=selector
+        f"{service_name}-batch",
+        target_port=9081,
+        port=9081,
+        namespace=namespace,
+        expose_type="NodePort",
+        selector=selector
     )

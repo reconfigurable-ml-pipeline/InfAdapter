@@ -21,7 +21,7 @@ class PrometheusClient:
         if time:
             params.update(time=time)
         response = requests.get(self.get_query_url("query"), params=params).json()
-        if response["success"] is False:
+        if response["status"] != "success":
             raise Exception("Unsuccessful instant query")
         return response["data"]["result"]["value"]
 
@@ -36,6 +36,10 @@ class PrometheusClient:
             self.get_query_url("query_range"),
             params={"query": query, "start": start_time, "end": end_time, "step": f"{step}s"}
         ).json()
-        if response["success"] is False:
+        print(response)
+        if response["status"] != "success":
             raise Exception("Unsuccessful range query")
-        return response["data"]["result"]["values"]
+        try:
+            return response["data"]["result"].get("values")
+        except AttributeError:
+            return response["data"]["result"]

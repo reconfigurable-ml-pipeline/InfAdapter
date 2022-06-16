@@ -86,11 +86,11 @@ def reconfigure_model(
             #     request_all_pods_to_reconfigure_batching()
 
 
-import random
-v = random.choice([18, 34, 50, 101, 152])
-b = random.choice([1, 16, 128])
-c = random.choice([1, 4])
-m = random.choice(["1Gi", "4Gi"])
-r = random.choice([1, 4])
-print("Switching to", v)
-reconfigure_model("default", "tfserving-resnet", 8500, v, b, c, m, r)
+# import random
+# v = random.choice([18, 34, 50, 101, 152])
+# b = random.choice([1, 16, 128])
+# c = random.choice([1, 4])
+# m = random.choice(["1Gi", "4Gi"])
+# r = random.choice([1, 4])
+# print("Switching to", v)
+# reconfigure_model("default", "tfserving-resnet", 8500, v, b, c, m, r)

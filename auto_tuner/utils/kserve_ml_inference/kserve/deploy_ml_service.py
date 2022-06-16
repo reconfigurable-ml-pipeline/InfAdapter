@@ -1,7 +1,7 @@
 from kube_resources.configmaps import create_configmap
 from kube_resources.kserve import create_inference_service
 from kube_resources.services import create_service as create_kubernetes_service
-from .constants import CURRENT_MODEL_KEY
+from auto_tuner.utils.kserve_ml_inference.kserve.constants import CURRENT_MODEL_KEY
 
 
 def deploy_ml_service(
@@ -28,6 +28,6 @@ def deploy_ml_service(
     create_configmap(configmap_name, namespace=namespace, data={CURRENT_MODEL_KEY: active_model})
     create_inference_service(service_name, namespace, **kwargs)
     create_kubernetes_service(
-        service_name, target_port=8080, namespace=namespace, node_port=node_port,
+        service_name, port=8080, target_port=8080, namespace=namespace, node_port=node_port,
         expose_type="NodePort", selector=selector
     )

@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 from kube_resources.services import get_endpoints
 from kube_resources.configmaps import update_configmap
-from .constants import CURRENT_MODEL_KEY
+from auto_tuner.utils.kserve_ml_inference.kserve.constants import CURRENT_MODEL_KEY
 
 
 def switch_model(namespace: str, service_name: str, target_port: int, new_model: str):
