@@ -1,1 +1,1 @@
-from .parameters import ParamTypes
+from auto_tuner.experiments.parameters import ParamTypes

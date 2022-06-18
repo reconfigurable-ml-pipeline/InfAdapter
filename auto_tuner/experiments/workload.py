@@ -19,7 +19,7 @@ requests = list(map(int, requests.split()))
 requests = requests[456*length:457*length]
 
 images = np.load(
-    "/home/mehran/my_repos/master_project/auto_tuner/experiments/saved_inputs.npy", allow_pickle=True
+    f"{BASE_DIR}/auto_tuner/experiments/saved_inputs.npy", allow_pickle=True
 )
 
 i = 1
@@ -33,7 +33,7 @@ del images
 
 # def locust_generator(host, rate):
 #     return os.system(
-#         f"locust -f /home/mehran/my_repos/master_project/auto_tuner/experiments/locustfile.py --headless"
+#         f"locust -f {BASE_DIR}/auto_tuner/experiments/locustfile.py --headless"
 #         f" --host {host} -u {rate} -r {rate} --run-time 1 --stop-timeout 1"
 #     )
 
@@ -50,7 +50,7 @@ def generate_workload(ip, port):
         # locust_generator_process = Process(target=locust_generator, args=(f"http://{ip}:{port}", rate))
         # locust_generator_process.start()
         os.popen(
-            f"locust -f /home/mehran/my_repos/master_project/auto_tuner/experiments/locustfile.py --headless"
+            f"locust -f {BASE_DIR}/auto_tuner/experiments/locustfile.py --headless"
             f" --host http://{ip}:{port} -u {rate} -r {rate} --run-time 1 --stop-timeout 2"
         )
         time.sleep(1)

@@ -2,6 +2,7 @@ import numpy as np
 import json
 import redis
 from locust import HttpUser, task
+from settings import BASE_DIR
 
 
 class Client(HttpUser):
@@ -11,10 +12,12 @@ class Client(HttpUser):
         self.global_idx = 1
         self.store = redis.Redis(db=0)
         self.endpoint = "/v1/models/resnet:predict"
-        with open("/home/mehran/my_repos/master_project/auto_tuner/experiments/imagenet_idx_to_label.json", "r") as f:
+
+        # Todo: check how long they take
+        with open(f"{BASE_DIR}/auto_tuner/experiments/imagenet_idx_to_label.json", "r") as f:
             self.idx_to_label = json.load(f)
 
-        with open("/home/mehran/my_repos/master_project/auto_tuner/experiments/imagenet_code_to_label.json", "r") as f:
+        with open(f"{BASE_DIR}/auto_tuner/experiments/imagenet_code_to_label.json", "r") as f:
             self.code_to_label = json.load(f)
 
     @task
