@@ -6,7 +6,7 @@ from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
 
-from settings import BASE_DIR
+from auto_tuner import AUTO_TUNER_DIRECTORY
 from auto_tuner.envs.simulation.kube_cluster import SimulatedCluster
 from auto_tuner.envs.simulation.monitoring import Monitoring
 from auto_tuner.autoscalers.base import RecommenderBase
@@ -24,7 +24,7 @@ class BiLSTMRecommender(RecommenderBase):
         super().__init__(env=env, cluster=cluster, monitoring=monitoring)
         self.replica_history = []
         self.prev_recommendations = []
-        self.model = load_model(f"{BASE_DIR}/auto_tuner/autoscalers/bi_lstm/saved")
+        self.model = load_model(f"{AUTO_TUNER_DIRECTORY}/autoscalers/bi_lstm/saved")
 
     def get_state(self, cluster_metrics, application_metrics):
         return [application_metrics, cluster_metrics[-1]]

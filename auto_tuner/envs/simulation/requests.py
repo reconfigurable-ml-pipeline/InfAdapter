@@ -1,4 +1,4 @@
-from settings import BASE_DIR
+from auto_tuner import AUTO_TUNER_DIRECTORY
 
 
 class Request:
@@ -30,7 +30,7 @@ class RequestGenerator:
 
         self._counter = 0
 
-        with open(f"{BASE_DIR}/auto_tuner/dataset/worldcup/workload.txt", "r") as f:
+        with open(f"{AUTO_TUNER_DIRECTORY}/dataset/worldcup/workload.txt", "r") as f:
             reqs = f.readlines()
             reqs = reqs[0].split()
             self.workload = list(map(int, reqs))

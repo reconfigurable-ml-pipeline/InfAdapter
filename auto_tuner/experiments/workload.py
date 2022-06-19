@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 from multiprocessing import Process
 
 import redis
-from settings import BASE_DIR
+
+from auto_tuner import AUTO_TUNER_DIRECTORY
 
 
 store = redis.Redis(db=0)
 
-with open(f"{BASE_DIR}/auto_tuner/dataset/twitter_trace/workload.txt", "r") as f:
+with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as f:
     requests = f.read()
 
 length = 60
@@ -19,7 +20,7 @@ requests = list(map(int, requests.split()))
 requests = requests[456*length:457*length]
 
 images = np.load(
-    f"{BASE_DIR}/auto_tuner/experiments/saved_inputs.npy", allow_pickle=True
+    f"{AUTO_TUNER_DIRECTORY}/experiments/saved_inputs.npy", allow_pickle=True
 )
 
 i = 1
@@ -50,7 +51,7 @@ def generate_workload(ip, port):
         # locust_generator_process = Process(target=locust_generator, args=(f"http://{ip}:{port}", rate))
         # locust_generator_process.start()
         os.popen(
-            f"locust -f {BASE_DIR}/auto_tuner/experiments/locustfile.py --headless"
+            f"locust -f {AUTO_TUNER_DIRECTORY}/experiments/locustfile.py --headless"
             f" --host http://{ip}:{port} -u {rate} -r {rate} --run-time 1 --stop-timeout 2"
         )
         time.sleep(1)

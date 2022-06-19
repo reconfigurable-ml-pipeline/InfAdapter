@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Input, Bidirectional, LSTM, Dense
-from settings import BASE_DIR
+
+from auto_tuner import AUTO_TUNER_DIRECTORY
 
 
 def get_x_y(data):
@@ -17,7 +18,7 @@ def get_x_y(data):
 
 
 def get_data():
-    with open(f"{BASE_DIR}/auto_tuner/dataset/worldcup/workload.txt", "r") as f:
+    with open(f"{AUTO_TUNER_DIRECTORY}/dataset/worldcup/workload.txt", "r") as f:
         workload = f.readlines()
     workload = workload[0].split()
     workload = list(map(int, workload))
@@ -63,4 +64,4 @@ if __name__ == "__main__":
     plt.plot(list(range(len(test_y))), list(predictions), label="predictions")
     plt.legend()
     plt.show()
-    model.save(f"{BASE_DIR}/auto_tuner/autoscalers/bi_lstm/saved")
+    model.save(f"{AUTO_TUNER_DIRECTORY}/autoscalers/bi_lstm/saved")

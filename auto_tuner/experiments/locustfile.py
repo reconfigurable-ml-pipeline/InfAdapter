@@ -1,46 +1,45 @@
+import os
 import numpy as np
 import json
 import redis
+import requests
 from locust import HttpUser, task
-from settings import BASE_DIR
+
+
+CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class Client(HttpUser):
     wait_time = lambda: 1
 
     def on_start(self):
-        self.global_idx = 1
+        self.client = requests
         self.store = redis.Redis(db=0)
         self.endpoint = "/v1/models/resnet:predict"
 
-        # Todo: check how long they take
-        with open(f"{BASE_DIR}/auto_tuner/experiments/imagenet_idx_to_label.json", "r") as f:
+        self.data = json.loads(self.store.get(f"imagenet-{np.random.randint(1, 101)}"))
+
+        with open(f"{CURRENT_DIR}/imagenet_idx_to_label.json", "r") as f:
             self.idx_to_label = json.load(f)
 
-        with open(f"{BASE_DIR}/auto_tuner/experiments/imagenet_code_to_label.json", "r") as f:
+        with open(f"{CURRENT_DIR}/imagenet_code_to_label.json", "r") as f:
             self.code_to_label = json.load(f)
 
     @task
     def predict(self):
-        data = self.store.get(f"imagenet-{self.global_idx}")
-        if not data:
-            self.global_idx = 1
-            data = self.store.get(f"imagenet-{self.global_idx}")
 
-        data = json.loads(data)
-        input_data = data["data"]
-        self.global_idx += 1
-        response = self.client.post(self.endpoint, data=input_data)
+        input_data = self.data["data"]
+        response = self.client.post(self.host + self.endpoint, json=input_data)
 
-        print("send request", self.global_idx)
+        print("send request")
 
         response.raise_for_status()
         prediction = response.json()["predictions"][0]
         idx = np.argmax(prediction)
-        input_label_text = self.code_to_label.get(data["label_code"])
+        input_label_text = self.code_to_label.get(self.data["label_code"])
         response_label_text = self.idx_to_label.get(idx)
 
-        print("sent request", self.global_idx, input_label_text, response_label_text)
+        print("sent request", input_label_text, response_label_text)
 
         # if input_label_text is not None and response_label_text is None:
         #     print(input_label_text == response_label_text)
