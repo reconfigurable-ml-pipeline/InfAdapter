@@ -5,12 +5,8 @@ import matplotlib.pyplot as plt
 from multiprocessing import Process
 import asyncio
 from aiohttp import ClientSession
-import redis
-
 from auto_tuner import AUTO_TUNER_DIRECTORY
 
-
-store = redis.Redis(db=0)
 
 with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as f:
     requests = f.read()
@@ -19,37 +15,31 @@ length = 60
 requests = list(map(int, requests.split()))
 requests = requests[456*length:457*length]
 
-images = np.load(
-    f"{AUTO_TUNER_DIRECTORY}/experiments/saved_inputs.npy", allow_pickle=True
+images = list(
+    np.load(f"{AUTO_TUNER_DIRECTORY}/experiments/saved_inputs.npy", allow_pickle=True)[:100]
 )
 
-j = 1
-for image in images:
-    store.set(f"imagenet-{j}", json.dumps(image))
-    j += 1
-    if j == 100:
-        break
 
-del images
-
-
-async def predict(url, data, delay):
+async def predict(url, data, delay, session):
     await asyncio.sleep(delay)
+    async with session.post(url, data=data["data"]) as response:
+        response = await response.text()
+        return json.loads(response)
+
+
+async def generate_load_for_second(url, count, data):
+    # data = json.loads(store.get(f"imagenet-{np.random.randint(1, 101)}"))
     async with ClientSession() as session:
-        async with session.post(url, data=data["data"]) as response:
-            response = await response.read()
-            return response
+        delays = np.cumsum(np.random.exponential(1 / count, count))
+        tasks = []
+        for i in range(count):
+            task = asyncio.ensure_future(predict(url, data, delays[i], session))
+            tasks.append(task)
+        await asyncio.gather(*tasks)
 
 
-def generate_load_for_second(url, count):
-    loop = asyncio.get_event_loop()
-    tasks = []
-    data = json.loads(store.get(f"imagenet-{np.random.randint(1, 101)}"))
-    delays = np.cumsum(np.random.exponential(1/count, count))
-    for i in range(count):
-        task = asyncio.ensure_future(predict(url, data, delays[i]))
-        tasks.append(task)
-    loop.run_until_complete(asyncio.wait(tasks))
+def generate_load(url, count, data):
+    asyncio.run(generate_load_for_second(url, count, data))
 
 
 def generate_workload(ip, port):
@@ -61,8 +51,11 @@ def generate_workload(ip, port):
     ip = "192.5.86.160"
     url = f"http://{ip}:{port}/v1/models/resnet:predict"
     processes = []
+
+    j = 0
     for rate in requests:
-        generator_process = Process(target=generate_load_for_second, args=(url, rate))
+        image = images[j]
+        generator_process = Process(target=generate_load, args=(url, rate, image))
         generator_process.daemon = True
         generator_process.start()
         processes.append(generator_process)
@@ -72,3 +65,6 @@ def generate_workload(ip, port):
             if p.exitcode is None:
                 procs.append(p)
         processes = procs
+        j += 1
+        if j == 100:
+            j == 0

@@ -58,11 +58,11 @@ pip install torchvision==0.11.2
 
 4. Convert pytorch pretrained models to onnx
 ```shell
+mkdir onnx
 python torch_to_onnx.py
 ```
 5. Convert the generated onnx models to tensorflow saved model format
 ```shell
-cd ..
 mkdir tensorflow
 python onnx_to_tf.py
 ```

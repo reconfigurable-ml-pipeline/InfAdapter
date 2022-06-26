@@ -10,7 +10,7 @@ spec:
   predictor:
     containers:
       - name: tfserving_resnet_container
-        image: mehransi/main:tfserving_resnet
+        image: mehransi/main:tfserving_resnet_b64
         ports:
           - containerPort: 8501
           - containerPort: 8500

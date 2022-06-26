@@ -35,7 +35,7 @@ if __name__ == "__main__":
     processes = []
 
     for version in versions:
-        p = Process(task=convert, args=(version,))
+        p = Process(target=convert, args=(version,))
         p.start()
         processes.append(p)
 
