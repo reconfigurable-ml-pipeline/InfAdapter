@@ -1,9 +1,10 @@
-using tensorflow serving multi-version serving feature
+using tensorflow serving multi-version serving feature, with model accepting batch and base64 image as input
 -
 
 ### Steps to deploy and test
 1. Install requirements
 ```shell
+pip install opencv-python==4.6.0.66
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.7.1/cert-manager.yaml
 wget https://github.com/kserve/kserve/releases/download/v0.8.0/kserve.yaml
 ```
@@ -49,36 +50,45 @@ pip install onnx==1.11.0
 pip install onnx_tf==1.10.0
 ```
 
-3. Download resnet onnx files
+3. Install pytorch
 ```shell
-mkdir onnx
-cd onnx
-for v in 18 34 50 101 152; do wget https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet$v-v1-7.onnx; done
+pip install torch==1.10.1
+pip install torchvision==0.11.2
 ```
 
-4. Convert to tensorflow format
+4. Convert pytorch pretrained models to onnx
+```shell
+python torch_to_onnx.py
+```
+5. Convert the generated onnx models to tensorflow saved model format
 ```shell
 cd ..
 mkdir tensorflow
 python onnx_to_tf.py
 ```
 
-5. Run tensorflow serving container
+6. Add preprocessing to the generated tensorflow models to allow them accept base64 image as input
 ```shell
-docker run -d --name serving_base tensorflow/serving
+mkdir tensorflow_b64
+python tensorflow_b64.py
 ```
 
-6 Copy model files to container file system
+7. Run tensorflow serving container
 ```shell
-docker cp tensorflow/ serving_base:/models/resnet
+docker run -d --name serving_base tensorflow/serving:2.8.0
 ```
 
-7. Commit the changes to create the Docker image
+8. Copy model files to container file system
+```shell
+docker cp tensorflow_b64/ serving_base:/models/resnet
+```
+
+9. Commit the changes to create the Docker image
 ```shell
 docker commit --change "ENV MODEL_NAME resnet" serving_base $USER/resnet_serving
 ```
 
-8. Stop the serving_base container
+10. Stop the serving_base container
 ```shell
 docker kill serving_base
 docker rm serving_base

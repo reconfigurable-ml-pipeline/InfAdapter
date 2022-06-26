@@ -1,10 +1,11 @@
 import argparse
 import os
 import math
-import PIL.Image
 import numpy as np
 import json
 from multiprocessing import Pipe, Process
+import cv2
+import base64 
 
 
 def get_sublists(lst: list, n: int):
@@ -13,16 +14,17 @@ def get_sublists(lst: list, n: int):
 
 
 def get_data(img_path):
-    image = PIL.Image.open(img_path)
-    image = np.expand_dims(np.array(image) / 255, 0)
-    image = np.moveaxis(image, 3, 1)
-    return json.dumps({"instances": image.tolist()})
+    im = cv2.imread(img_path)
+    encoded = base64.b64encode(cv2.imencode(".jpeg",im)[1].tobytes())
+    instance =[{"b64":encoded.decode("utf-8")}]
+    return json.dumps({"inputs": instance})
 
 
 files = []
 for directory in os.listdir("imagenet"):
     for img in os.listdir(f"imagenet/{directory}"):
         files.append({"label_code": directory, "path": f"imagenet/{directory}/{img}"})
+        break
     if len(files) >= 200:
         break
 

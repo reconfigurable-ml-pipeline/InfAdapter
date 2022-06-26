@@ -70,6 +70,9 @@ def save_results(prom: PrometheusClient, start_time: int):
         end_time=int(datetime.now().timestamp()),
         step=1
     )
+    print("request rates", request_rates)
+    if not request_rates:
+        return
     plt.xlabel("time (seconds)")
     plt.plot(range(1, len(request_rates) + 1), list(map(lambda x: x[1], request_rates)), label="request count")
     plt.legend()

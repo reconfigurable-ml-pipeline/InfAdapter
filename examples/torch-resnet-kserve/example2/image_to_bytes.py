@@ -9,6 +9,7 @@ args = parser.parse_args()
 
 image = open(args.filename, 'rb')  # open binary file in read mode
 image_read = image.read()
+
 image_64_encode = base64.b64encode(image_read)
 bytes_array = image_64_encode.decode('utf-8')
 request = {
@@ -18,6 +19,7 @@ request = {
     }
   ]
 }
+image.close()
 
 with open('input.json', 'w') as outfile:
     json.dump(request, outfile, indent=4, sort_keys=True)

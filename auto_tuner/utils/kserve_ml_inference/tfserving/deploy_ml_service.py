@@ -12,15 +12,17 @@ def deploy_ml_service(
     configmap_name = f"{service_name}-cm"
     volume_name = f"{service_name}-vol"
 
-    if kwargs.get("max_batch_size") and not kwargs.get("max_batch_latency"):
-        kwargs["max_batch_latency"] = 10
+    max_batch_size = kwargs.pop("max_batch_size", None)
+    max_batch_latency = kwargs.pop("max_batch_latency", 10)  # Fixme: add to config space
+    
+
     if not kwargs.get("predictor_args"):
         kwargs["predictor_args"] = []
     kwargs["predictor_args"].extend([
         "--model_config_file=/etc/tfserving/models.config",
-        "--monitoring_config_file=/etc/tfserving/monitoring.config"
-        # "--enable_batching=true",
-        # "--batching_parameters_file=/etc/tfserving/batch.config"
+        "--monitoring_config_file=/etc/tfserving/monitoring.config",
+        "--enable_batching=true",
+        "--batching_parameters_file=/etc/tfserving/batch.config"
     ])
 
     if not kwargs.get("labels"):
@@ -45,8 +47,9 @@ def deploy_ml_service(
                   enable: true,
                   path: "/monitoring/prometheus/metrics"
                 }
-            """
-            # "batch.config": get_batch_configuration(max_batch_size, kwargs["predictor_request_cpu"])
+            """,
+            # Fixme: Add num_batch_size to configuration space
+            "batch.config": get_batch_configuration(max_batch_size, kwargs["predictor_request_cpu"])
         }
     )
     create_inference_service(service_name, namespace, **kwargs)
@@ -66,11 +69,11 @@ def deploy_ml_service(
         expose_type="NodePort",
         selector=selector
     )
-    create_kubernetes_service(
-        f"{service_name}-batch",
-        target_port=9081,
-        port=9081,
-        namespace=namespace,
-        expose_type="NodePort",
-        selector=selector
-    )
+    # create_kubernetes_service(
+    #     f"{service_name}-batch",
+    #     target_port=9081,
+    #     port=9081,
+    #     namespace=namespace,
+    #     expose_type="NodePort",
+    #     selector=selector
+    # )
