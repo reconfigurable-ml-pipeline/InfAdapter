@@ -1,10 +1,10 @@
 import argparse
 import os
+import json
 import math
 import numpy as np
-import json
-from multiprocessing import Pipe, Process
 import cv2
+from multiprocessing import Pipe, Process
 import base64 
 
 
@@ -15,9 +15,12 @@ def get_sublists(lst: list, n: int):
 
 def get_data(img_path):
     im = cv2.imread(img_path)
+    im = cv2.resize(im, dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
     encoded = base64.b64encode(cv2.imencode(".jpeg",im)[1].tobytes())
-    instance =[{"b64":encoded.decode("utf-8")}]
+    instance =[{"b64": encoded.decode("utf-8")}]
+
     return json.dumps({"inputs": instance})
+
 
 
 files = []
@@ -25,8 +28,8 @@ for directory in os.listdir("imagenet"):
     for img in os.listdir(f"imagenet/{directory}"):
         files.append({"label_code": directory, "path": f"imagenet/{directory}/{img}"})
         break
-    if len(files) >= 200:
-        break
+    # if len(files) >= 200:
+    #     break
 
 
 print("all files", len(files))
