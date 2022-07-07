@@ -30,6 +30,7 @@ setup(
         "redis==3.5.3",
         "opencv-python==4.6.0.66",
         "kubernetes-python-client @ git+ssh://git@github.com/mehransi/kubernetes-python-client.git",
+        "barazmoon @ git+ssh://git@github.com/reconfigurable-ml-pipeline/load_tester.git"
     ],
 
 )

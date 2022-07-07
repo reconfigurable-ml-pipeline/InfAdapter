@@ -4,7 +4,7 @@ import tensorflow as tf
 
 def convert(v):
     model = tf.saved_model.load(f"tensorflow/{v}")
-    # Current signature, accepting tensor with shape (N, 3, 224, 224)
+    # Current signature, accepting tensor with shape (-1, -1, -1, 3)
     signature = model.signatures["serving_default"]
 
     @tf.function()
@@ -15,7 +15,10 @@ def convert(v):
             img = tf.image.resize(img, (224, 224))
             img = tf.transpose(img, perm=[2, 0, 1])
             return img
-        img_tensor = tf.map_fn(lambda x: preprocess(x), elems=image_b64, fn_output_signature=tf.float32)
+        img_tensor = tf.nest.map_structure(
+            tf.stop_gradient,
+            tf.map_fn(lambda x: preprocess(x), elems=image_b64, fn_output_signature=tf.float32)
+        )
         prediction = signature(img_tensor)
         return prediction
 
@@ -28,6 +31,7 @@ def convert(v):
         export_dir=f"tensorflow_b64/{v}",
         signatures=new_signature
     )
+    print("Saved version", v)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ versions = [18, 34, 50, 101, 152]
 
 def convert(v):
     onnx_model = onnx.load(f"onnx/resnet{v}-v1-7.onnx")
+    #onnx_model.graph.input[0].type.tensor_type.shape.dim[0].dim_param = '?'
     tf_rep = prepare(onnx_model, logging_level="DEBUG")
     tf_rep.export_graph(f"tensorflow2/{v}")
     print("Exported version", v)

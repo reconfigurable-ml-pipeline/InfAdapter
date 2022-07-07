@@ -28,9 +28,9 @@ kubectl expose deploy tfserving-resnet-predictor-default --target_port 8501 --ty
 python resnet_client.py
 ```
 
-6. Switch to another model
+6. Switch to another model by editing the version field in configmap
 ```shell
-curl $WORKER_IP:$NODE_PORT/v3/models/kserve_resnet:switch-model -d '{"model": "resnet18"}'
+kubectl edit cm tfserving-resnet-cm
 ```
 
 7. Repeat step 7 to test again
