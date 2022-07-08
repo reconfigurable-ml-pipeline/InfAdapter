@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def read():
@@ -10,7 +10,7 @@ setup(
     name="auto_tuner",
     version="0.0.1",
     keywords=["ML Inference", "ML Service", "Autoscaling", "Auto-Configuration", "Kubernetes", "Cloud Computing"],
-    packages=["auto_tuner"],
+    packages=find_packages("."),
     long_description=read(),
     install_requires=[
         "gym==0.24.0",
@@ -29,7 +29,7 @@ setup(
         "locust==2.9.0",
         "redis==3.5.3",
         "opencv-python==4.6.0.66",
-        "kubernetes-python-client @ git+ssh://git@github.com/mehransi/kubernetes-python-client.git",
+        "kubernetes-python-client @ git+ssh://git@github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git",
         "barazmoon @ git+ssh://git@github.com/reconfigurable-ml-pipeline/load_tester.git"
     ],
 

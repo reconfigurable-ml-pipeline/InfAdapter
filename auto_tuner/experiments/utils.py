@@ -55,7 +55,7 @@ def delete_previous_deployment(service_name: str, namespace: str):
     delete_configmap(f"{service_name}-cm", namespace)
     delete_kubernetes_service(f"{service_name}-rest", namespace=namespace)
     delete_kubernetes_service(f"{service_name}-grpc", namespace=namespace)
-    delete_kubernetes_service(f"{service_name}-batch", namespace=namespace)
+    # delete_kubernetes_service(f"{service_name}-batch", namespace=namespace)
 
 
 def save_results(prom: PrometheusClient, start_time: int):

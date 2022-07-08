@@ -17,7 +17,13 @@ def start_experiment(config):
     service_name = "tfserving-resnet"
     namespace = "mehran"
 
-    prom = PrometheusClient("192.5.86.160", 30090)
+    # ip = os.popen(
+    #     "kubectl get node --selector='!node-role.kubernetes.io/master'"
+    #     " -o jsonpath='{.items[0].status.addresses[0].address}'"
+    # ).read()
+    ip = "192.5.86.160"
+
+    prom = PrometheusClient(ip, 30090)
 
     print(config)
     print(config[ParamTypes.CPU])
@@ -26,17 +32,14 @@ def start_experiment(config):
         return
 
     apply_config(service_name, namespace, config)
+    time.sleep(5)
     wait_till_pods_are_ready(f"{service_name}-predictor-default", namespace)  # Check if config is really applied
-    time.sleep(10)
+    time.sleep(5)
+
     port = int(os.popen(
-        f"kubectl get -n {namespace} svc {service_name}-batch -o jsonpath='{{.spec.ports[0].nodePort}}'"
+        f"kubectl get -n {namespace} svc {service_name}-rest -o jsonpath='{{.spec.ports[0].nodePort}}'"
     ).read())
-
-    ip = os.popen(
-        "kubectl get node --selector='!node-role.kubernetes.io/master'"
-        " -o jsonpath='{.items[0].status.addresses[0].address}'"
-    ).read()
-
+    
     print(ip, port)
 
     start_time = int(datetime.now().timestamp())
