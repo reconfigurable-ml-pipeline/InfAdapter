@@ -26,8 +26,9 @@ def apply_config(service_name: str, namespace: str, config: dict):
         active_model_version=config.get(ParamTypes.MODEL_ARCHITECTURE),
         namespace=namespace,
         selector={"inference_framework": "kserve", "ML_framework": "tensorflow", "model_server": "tfserving"},
-        predictor_container_ports=[8501, 8500, 9081],
-        predictor_image="mehransi/main:tfserving_resnet",
+        predictor_container_ports=[8501, 8500],
+        # predictor_container_ports=[8501, 8500, 9081],
+        predictor_image="mehransi/main:tfserving_resnet_b64",
         predictor_request_mem=config.get(ParamTypes.MEMORY),
         predictor_request_cpu=config.get(ParamTypes.CPU),
         predictor_limit_mem=config.get(ParamTypes.MEMORY),
@@ -70,11 +71,18 @@ def save_results(prom: PrometheusClient, start_time: int):
         end_time=int(datetime.now().timestamp()),
         step=1
     )
-    print("request rates", request_rates)
     if not request_rates:
         return
+    
+    values = list(map(lambda x: int(x[1]), request_rates))
+    print("last value", values[-1])
+    for i in range(len(values)-1, 0, -1):
+        values[i] = values[i] - values[i-1]
+    
+    print("sum values", sum(values))
+
     plt.xlabel("time (seconds)")
-    plt.plot(range(1, len(request_rates) + 1), list(map(lambda x: x[1], request_rates)), label="request count")
+    plt.plot(range(1, len(request_rates) + 1), values, label="request count")
     plt.legend()
     plt.savefig("load_monitoring.png", format="png")
     plt.close()

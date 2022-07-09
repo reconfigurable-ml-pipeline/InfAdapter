@@ -9,6 +9,7 @@ from kube_resources.services import create_service as create_kubernetes_service
 def deploy_ml_service(
         service_name: str, active_model_version: int, selector: dict, namespace="default", **kwargs
 ):
+    volume_mount_path = "/etc/tfserving"
     configmap_name = f"{service_name}-cm"
     volume_name = f"{service_name}-vol"
 
@@ -19,10 +20,10 @@ def deploy_ml_service(
     if not kwargs.get("predictor_args"):
         kwargs["predictor_args"] = []
     kwargs["predictor_args"].extend([
-        "--model_config_file=/etc/tfserving/models.config",
-        "--monitoring_config_file=/etc/tfserving/monitoring.config",
+        f"--model_config_file={volume_mount_path}/models.config",
+        f"--monitoring_config_file={volume_mount_path}/monitoring.config",
         "--enable_batching=true",
-        "--batching_parameters_file=/etc/tfserving/batch.config"
+        f"--batching_parameters_file={volume_mount_path}/batch.config"
     ])
 
     if not kwargs.get("labels"):
@@ -49,7 +50,7 @@ def deploy_ml_service(
                 }
             """,
             # Fixme: Add num_batch_size to configuration space
-            "batch.config": get_batch_configuration(max_batch_size, kwargs["predictor_request_cpu"])
+            "batch.config": get_batch_configuration(max_batch_size, max_batch_latency, kwargs["predictor_request_cpu"])
         }
     )
     create_inference_service(service_name, namespace, **kwargs)

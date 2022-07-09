@@ -42,4 +42,7 @@ class PrometheusClient:
         try:
             return response["data"]["result"].get("values")
         except AttributeError:
-            return response["data"]["result"]
+            try:
+                return response["data"]["result"][0].get("values")
+            except (KeyError, IndexError, AttributeError):
+                return response["data"]["result"]

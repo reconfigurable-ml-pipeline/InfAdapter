@@ -4,12 +4,12 @@ from datetime import datetime
 import os
 from ray.tune.suggest import BasicVariantGenerator
 import ray
-
+from kube_resources.services import get_service
 from auto_tuner.experiments import ParamTypes
 from auto_tuner.experiments.utils import (
     is_config_valid, apply_config, wait_till_pods_are_ready, delete_previous_deployment, save_results
 )
-from auto_tuner.experiments.workload import generate_workload
+from auto_tuner.experiments.workload import warmup, generate_workload
 from auto_tuner.utils.prometheus import PrometheusClient
 
 
@@ -23,7 +23,8 @@ def start_experiment(config):
     # ).read()
     ip = "192.5.86.160"
 
-    prom = PrometheusClient(ip, 30090)
+    prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
+    prom = PrometheusClient(ip, prom_port)
 
     print(config)
     print(config[ParamTypes.CPU])
@@ -36,12 +37,11 @@ def start_experiment(config):
     wait_till_pods_are_ready(f"{service_name}-predictor-default", namespace)  # Check if config is really applied
     time.sleep(5)
 
-    port = int(os.popen(
-        f"kubectl get -n {namespace} svc {service_name}-rest -o jsonpath='{{.spec.ports[0].nodePort}}'"
-    ).read())
-    
+    port = get_service(f"{service_name}-rest", namespace)["node_port"]
+
     print(ip, port)
 
+    warmup(ip, port)
     start_time = int(datetime.now().timestamp())
     generate_workload(ip, port)
     save_results(prom, start_time=start_time)
@@ -63,13 +63,13 @@ tune_search_space = {
 if __name__ == "__main__":
     start_experiment(
         {
-            ParamTypes.CPU: 4,
-            ParamTypes.MEMORY: "4G",
+            ParamTypes.CPU: 2,
+            ParamTypes.MEMORY: "2G",
             ParamTypes.REPLICA: 2,
             ParamTypes.BATCH: 16,
-            ParamTypes.MODEL_ARCHITECTURE: 18,
+            ParamTypes.MODEL_ARCHITECTURE: 50,
             ParamTypes.INTER_OP_PARALLELISM: 1,
-            ParamTypes.INTRA_OP_PARALLELISM: 4
+            ParamTypes.INTRA_OP_PARALLELISM: 2
         }
     )
     # ray.init(include_dashboard=False)
