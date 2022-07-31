@@ -10,7 +10,7 @@ class PrometheusClient:
     def get_query_url(self, query_type: str):
         return self.__query_url + query_type
 
-    def get_instant(self, query: str, time: str = None):
+    def get_instant(self, query: str, time: float = None):
         """
         :param query: PromQL query in string format
         :param time: unix timestamp seconds
@@ -23,9 +23,12 @@ class PrometheusClient:
         response = requests.get(self.get_query_url("query"), params=params).json()
         if response["status"] != "success":
             raise Exception("Unsuccessful instant query")
-        return response["data"]["result"]["value"]
+        try:
+            return response["data"]["result"]["value"]
+        except TypeError:
+            return list(map(lambda r: r["value"], response["data"]["result"]))
 
-    def get_range(self, query: str, start_time: int, end_time: int, step: int):
+    def get_range(self, query: str, start_time: float, end_time: float, step: int):
         """
         :param query: PromQL query in string format
         :param start_time: unix timestamp seconds

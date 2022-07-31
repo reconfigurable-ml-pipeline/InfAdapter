@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
 from kube_resources.deployments import get_deployment
@@ -35,6 +35,7 @@ def apply_config(service_name: str, namespace: str, config: dict):
         predictor_limit_cpu=config.get(ParamTypes.CPU),
         predictor_min_replicas=config.get(ParamTypes.REPLICA),
         max_batch_size=config.get(ParamTypes.BATCH),
+        max_batch_latency=10000,
         predictor_args=[
             f"--tensorflow_intra_op_parallelism={config.get(ParamTypes.INTRA_OP_PARALLELISM)}",
             f"--tensorflow_inter_op_parallelism={config.get(ParamTypes.INTER_OP_PARALLELISM)}"
@@ -61,14 +62,20 @@ def delete_previous_deployment(service_name: str, namespace: str):
 
 def save_results(prom: PrometheusClient, start_time: int):
     """SLO
-    sum(rate(: tensorflow:serving: runtime_latency_bucket{instance = ~".*:8501", le = "708235"}[1m])) /
-     sum(rate(: tensorflow:serving: request_latency_count{instance = ~".*:8501"}[1m]))
+    sum(rate(:tensorflow:serving:runtime_latency_bucket{instance=~".*:8501", le = "708235"}[1m])) /
+     sum(rate(:tensorflow:serving:request_latency_count{instance=~".*:8501"}[1m]))
 
+    histogram_quantile(0.95, rate(:tensorflow:serving:request_latency_bucket[1m]))
     """
+    percentile_95 = prom.get_instant(
+        'histogram_quantile(0.95, rate(:tensorflow:serving:request_latency_bucket{instance=~".*:8501"}[1m]))'
+    )
+    print(f"{percentile_95=}")
+    end_time = (datetime.now() + timedelta(seconds=20)).timestamp()
     request_rates = prom.get_range(
         'sum(:tensorflow:serving:request_latency_count{instance=~".*:8501"})',
         start_time=start_time,
-        end_time=int(datetime.now().timestamp()),
+        end_time=end_time,
         step=1
     )
     if not request_rates:
@@ -76,13 +83,20 @@ def save_results(prom: PrometheusClient, start_time: int):
     
     values = list(map(lambda x: int(x[1]), request_rates))
     print("last value", values[-1])
+    print("monitoring workload", len(values), values)
     for i in range(len(values)-1, 0, -1):
         values[i] = values[i] - values[i-1]
+    while True:
+        if values[-1] == 0:
+            values.pop(-1)
+        else:
+            break
+    print("monitoring workload after", len(values), values)
     
     print("sum values", sum(values))
 
     plt.xlabel("time (seconds)")
-    plt.plot(range(1, len(request_rates) + 1), values, label="request count")
+    plt.plot(range(1, len(values) + 1), values, label="request count")
     plt.legend()
     plt.savefig("load_monitoring.png", format="png")
     plt.close()

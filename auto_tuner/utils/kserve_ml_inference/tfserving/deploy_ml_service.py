@@ -14,17 +14,24 @@ def deploy_ml_service(
     volume_name = f"{service_name}-vol"
 
     max_batch_size = kwargs.pop("max_batch_size", None)
-    max_batch_latency = kwargs.pop("max_batch_latency", 10)  # Fixme: add to config space
+    max_batch_latency = kwargs.pop("max_batch_latency", 1000)  # Fixme: add to config space
+    enable_batching = False
+    if max_batch_size is not None and max_batch_size > 1:
+        enable_batching = True
     
+    if not kwargs.get("predictor_env_vars"):
+        kwargs["predictor_env_vars"] = {}
+    kwargs["predictor_env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
 
     if not kwargs.get("predictor_args"):
         kwargs["predictor_args"] = []
     kwargs["predictor_args"].extend([
         f"--model_config_file={volume_mount_path}/models.config",
         f"--monitoring_config_file={volume_mount_path}/monitoring.config",
-        "--enable_batching=true",
-        f"--batching_parameters_file={volume_mount_path}/batch.config"
+        f"--enable_batching={'true' if enable_batching else 'false'}",   
     ])
+    if enable_batching:
+        kwargs["predictor_args"].append(f"--batching_parameters_file={volume_mount_path}/batch.config")
 
     if not kwargs.get("labels"):
         kwargs["labels"] = {}
