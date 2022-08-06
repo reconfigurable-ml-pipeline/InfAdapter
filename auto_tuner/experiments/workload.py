@@ -10,11 +10,11 @@ from auto_tuner import AUTO_TUNER_DIRECTORY
 with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as f:
     workload_pattern = f.read()
 
-length = 60
+length = 5 * 60
 workload_pattern = list(map(int, workload_pattern.split()))
 workload_pattern = workload_pattern[length:2*length]
 
-workload_pattern = np.array(workload_pattern) // 9
+workload_pattern = np.array(workload_pattern)
 
 print("total number of requests being sent", sum(workload_pattern))
 
@@ -65,7 +65,7 @@ def generate_workload(ip, port):
     plt.xlabel("time (seconds)")
     plt.plot(range(1, len(workload_pattern) + 1), workload_pattern, label="request count")
     plt.legend()
-    plt.savefig("load_generator.png", format="png")
+    plt.savefig(f"{AUTO_TUNER_DIRECTORY}/../results/workload.png", format="png")
     plt.close()
 
     counter, failed = WorkloadGenerator().start()

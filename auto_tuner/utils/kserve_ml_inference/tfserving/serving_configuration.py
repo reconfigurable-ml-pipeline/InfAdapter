@@ -20,5 +20,5 @@ def get_batch_configuration(max_batch_size: int, max_batch_latency: int, num_bat
     max_batch_size {{ value: {max_batch_size} }}
     batch_timeout_micros {{ value: {max_batch_latency} }}
     max_enqueued_batches {{ value: 1000000 }}
-    num_batch_threads {{ value: {num_batch_threads} }}
+    num_batch_threads {{ value: 1 }}
     """

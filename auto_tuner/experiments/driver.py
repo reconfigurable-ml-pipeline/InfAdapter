@@ -44,7 +44,7 @@ def start_experiment(config):
     warmup(ip, port)
     start_time = datetime.now().timestamp()
     generate_workload(ip, port)
-    save_results(prom, start_time=start_time)
+    save_results(prom, start_time=start_time, config=config)
     delete_previous_deployment(service_name, namespace)
     time.sleep(10)
 

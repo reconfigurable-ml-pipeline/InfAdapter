@@ -1,5 +1,6 @@
 # Created by https://www.toptal.com/developers/gitignore/api/pycharm,visualstudiocode,python,linux
 
+results/
 ### Linux ###
 *~
 
