@@ -27,16 +27,15 @@ with open(f"{AUTO_TUNER_DIRECTORY}/experiments/imagenet_idx_to_label.json", "r")
     idx_to_label = json.load(f)
 
 
-def warmup(ip, port):
+def warmup(url):
     print("Starting warmpu...")
     for i in range(3):
-        data = images[i]["data"]
-        requests.post(f"http://{ip}:{port}/v1/models/resnet:predict", data=data)
+        data = images[np.random.randint(0, 200)]
+        requests.post(f"{url}", data=data["data"])
     print("Warmup done.")
 
 
-def generate_workload(ip, port):
-    url = f"http://{ip}:{port}/v1/models/resnet:predict"
+def generate_workload(url):
 
     class WorkloadGenerator(BarAzmoon):
         endpoint = url 

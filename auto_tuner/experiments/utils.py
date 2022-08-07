@@ -2,7 +2,8 @@ import time
 import os
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import json 
+import json
+import csv
 
 from kube_resources.deployments import get_deployment
 from kube_resources.configmaps import delete_configmap
@@ -69,7 +70,8 @@ def _get_value(prom_res):
             return tup[1]
 
 
-def save_results(prom: PrometheusClient, start_time: int, config: dict):
+def save_results(config: dict, prom: PrometheusClient, start_time: int):
+    # Todo: Add CPU and memory usage
     percent_708ms = prom.get_instant(
         'sum(rate(:tensorflow:serving:runtime_latency_bucket{instance=~".*:8501", le = "708235"}[5m]))'
         ' / sum(rate(:tensorflow:serving:request_latency_count{instance=~".*:8501"}[5m]))'
@@ -83,17 +85,26 @@ def save_results(prom: PrometheusClient, start_time: int, config: dict):
     percentile_99 = prom.get_instant(
         'histogram_quantile(0.99, rate(:tensorflow:serving:request_latency_bucket{instance=~".*:8501"}[5m]))'
     )
-    dirname = "-".join(map(lambda tup: f"{tup[0]}:{tup[1]}", config.items()))
-    path = f"{AUTO_TUNER_DIRECTORY}/../results/{dirname}"
-    os.system(f"mkdir -p {path}")
-    with open(f"{path}/percent_708ms.txt", "w") as f:
-        f.write(_get_value(percent_708ms))
-    with open(f"{path}/p50.txt", "w") as f:
-        f.write(_get_value(percentile_50))
-    with open(f"{path}/p95.txt", "w") as f:
-        f.write(_get_value(percentile_95))
-    with open(f"{path}/p99.txt", "w") as f:
-        f.write(_get_value(percentile_99))
+    filepath = f'{AUTO_TUNER_DIRECTORY}/../results/experiment_result.csv'
+    file_exists = os.path.exists(filepath)
+    with open(
+        filepath, 'a', newline=''
+    ) as csvfile:
+        params = ParamTypes.get_all()
+        field_names = [*params, "percent_708ms", "percentile_50", "percentile_95", "percentile_99"]
+        writer = csv.DictWriter(csvfile, fieldnames=field_names)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(
+            {
+                **config,
+                "percent_708ms": percent_708ms,
+                "percentile_50": percentile_50,
+                "percentile_95": percentile_95,
+                "percentile_99": percentile_99,
+            }
+        )
+    
     # print("------------------------------")
     # end_time = (datetime.now() + timedelta(seconds=20)).timestamp()
     # request_rates = prom.get_range(
@@ -128,3 +139,26 @@ def save_results(prom: PrometheusClient, start_time: int, config: dict):
     # plt.legend()
     # plt.savefig("load_monitoring.png", format="png")
     # plt.close()
+
+
+def save_load_results(config: dict, total, total_time, average, minimum, maximum):
+    filepath = f'{AUTO_TUNER_DIRECTORY}/../results/load_result.csv'
+    file_exists = os.path.exists(filepath)
+    with open(
+        filepath, 'a', newline=''
+    ) as csvfile:
+        params = ParamTypes.get_all()
+        field_names = [*params, "total", "total_time", "avg", "min", "max"]
+        writer = csv.DictWriter(csvfile, fieldnames=field_names)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(
+            {
+                **config,
+                "total": total,
+                "total_time": total_time,
+                "avg": average,
+                "min": minimum,
+                "max": maximum
+            }
+        )

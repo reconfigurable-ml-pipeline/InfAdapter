@@ -7,9 +7,15 @@ import ray
 from kube_resources.services import get_service
 from auto_tuner.experiments import ParamTypes
 from auto_tuner.experiments.utils import (
-    is_config_valid, apply_config, wait_till_pods_are_ready, delete_previous_deployment, save_results
+    is_config_valid,
+    apply_config,
+    wait_till_pods_are_ready,
+    delete_previous_deployment,
+    save_load_results,
+    save_results
 )
 from auto_tuner.experiments.workload import warmup, generate_workload
+from auto_tuner.experiments.load import generate_load
 from auto_tuner.utils.prometheus import PrometheusClient
 
 
@@ -34,19 +40,32 @@ def start_experiment(config):
 
     apply_config(service_name, namespace, config)
     time.sleep(5)
-    wait_till_pods_are_ready(f"{service_name}-predictor-default", namespace)  # Check if config is really applied
+    # Check if config is really applied
+    wait_till_pods_are_ready(f"{service_name}-predictor-default", namespace)
     time.sleep(5)
 
     port = get_service(f"{service_name}-rest", namespace)["node_port"]
 
     print(ip, port)
+    url = f"http://{ip}:{port}/v1/models/resnet:predict"
 
-    warmup(ip, port)
+    warmup(url)
     start_time = datetime.now().timestamp()
-    generate_workload(ip, port)
-    save_results(prom, start_time=start_time, config=config)
+    # generate_workload(url)
+    total_requests = 200
+    total_time, average, minimum, maximum = generate_load(url, total_requests)
+    # save_results(config, prom, start_time=start_time)
+    save_load_results(
+        config,
+        total=total_requests,
+        total_time=total_time,
+        average=average,
+        minimum=minimum,
+        maximum=maximum
+    )
     delete_previous_deployment(service_name, namespace)
-    time.sleep(10)
+    # time.sleep(10)
+    time.sleep(5)
 
 
 tune_search_space = {
