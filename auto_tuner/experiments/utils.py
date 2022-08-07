@@ -141,14 +141,14 @@ def save_results(config: dict, prom: PrometheusClient, start_time: int):
     # plt.close()
 
 
-def save_load_results(config: dict, total, total_time, average, minimum, maximum):
+def save_load_results(config: dict, total: int, result: dict):
     filepath = f'{AUTO_TUNER_DIRECTORY}/../results/load_result.csv'
     file_exists = os.path.exists(filepath)
     with open(
         filepath, 'a', newline=''
     ) as csvfile:
         params = ParamTypes.get_all()
-        field_names = [*params, "total", "total_time", "avg", "min", "max"]
+        field_names = [*params, "total", *result.keys(), "timestamp"]
         writer = csv.DictWriter(csvfile, fieldnames=field_names)
         if not file_exists:
             writer.writeheader()
@@ -156,9 +156,7 @@ def save_load_results(config: dict, total, total_time, average, minimum, maximum
             {
                 **config,
                 "total": total,
-                "total_time": total_time,
-                "avg": average,
-                "min": minimum,
-                "max": maximum
+                **result,
+                "timestamp": datetime.now().isoformat()
             }
         )

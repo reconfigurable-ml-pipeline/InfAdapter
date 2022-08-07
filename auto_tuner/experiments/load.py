@@ -47,7 +47,15 @@ async def generate_load_for_second(url, count):
         # print("size", sys.getsizeof(data["data"]) / 1000000)
         t = time.perf_counter()
         rts = await asyncio.gather(*tasks)
-        return time.perf_counter() - t, sum(rts) / len(rts), min(rts), max(rts)
+        return {
+            "total_time": round(time.perf_counter() - t, 2), 
+            "avg": round(sum(rts) / len(rts), 2),
+            "min": round(min(rts), 2),
+            "max": round(max(rts), 2),
+            "p50": round(np.percentile(rts, 50), 2),
+            "p95": round(np.percentile(rts, 95), 2),
+            "p99": round(np.percentile(rts, 99), 2),
+        }, rts
 
 
 def generate_load(url, total):
