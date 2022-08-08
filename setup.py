@@ -18,7 +18,7 @@ setup(
         "ray[serve]==1.9.0",
         "aioredis==1.3.1",
         "simpy==4.0.1",
-        "matplotlib==3.4.2",
+        "matplotlib==3.5.2",
         "PyQt5==5.15.4",
         "tensorflow==2.7.0",
         "tensorflow-serving-api==2.7.0",

@@ -4,7 +4,10 @@ import os
 import json
 # from ray.tune.suggest import BasicVariantGenerator
 # import ray
+import aiohttp
 from kube_resources.services import get_service
+from kube_resources.pods import get_pods
+
 from auto_tuner.experiments import ParamTypes
 from auto_tuner.experiments.utils import (
     is_config_valid,
@@ -20,12 +23,12 @@ from auto_tuner.utils.prometheus import PrometheusClient
 from auto_tuner import AUTO_TUNER_DIRECTORY
 
 repeat_results = []
+namespace = "mehran"
+service_name = "tfserving-resnet"
+
 
 def start_experiment(config, repeat, max_repeat):
     global repeat_results
-
-    service_name = "tfserving-resnet"
-    namespace = "mehran"
 
     # ip = os.popen(
     #     "kubectl get node --selector='!node-role.kubernetes.io/master'"
@@ -71,7 +74,7 @@ def start_experiment(config, repeat, max_repeat):
             for k, v in res.items():
                 avg_result[k] = avg_result.get(k, 0) + v
         for k, v in avg_result.items():
-            avg_result[k] = avg_result[k] / len(repeat_results)
+            avg_result[k] = round(avg_result[k] / len(repeat_results), 2)
         save_load_results(
             config,
             total=total_requests,
@@ -96,15 +99,17 @@ def start_experiment(config, repeat, max_repeat):
 if __name__ == "__main__":
     repeat_count = 2
     for cpu in [2, 8, 32]:
-        for memory in [f"{cpu//2}G", f"{cpu * 2}G"]:
+        for memory in [f"{cpu//2}G", f"{cpu}G", f"{cpu * 2}G"]:
             for batch_size in [1, 32]:
                 for batch_timeout in [10000]:
                     for arch in [18, 50, 152]:
                         for interop in set([1, cpu // 2, cpu]):
                             for intraop in set([1, cpu // 2, cpu]):
+                                if interop == 1 and intraop == 1:
+                                    continue
                                 for repeat in range(repeat_count + 1):
-                                    start_experiment(
-                                        {
+                                    try:
+                                        config = {
                                             ParamTypes.CPU: cpu,
                                             ParamTypes.MEMORY: memory,
                                             ParamTypes.REPLICA: 1,
@@ -113,10 +118,25 @@ if __name__ == "__main__":
                                             ParamTypes.MODEL_ARCHITECTURE: arch,
                                             ParamTypes.INTER_OP_PARALLELISM: interop,
                                             ParamTypes.INTRA_OP_PARALLELISM: intraop
-                                        },
-                                        repeat=repeat,
-                                        max_repeat=repeat_count
-                                    )
+                                        }
+                                        start_experiment(config, repeat=repeat, max_repeat=repeat_count)
+                                    except aiohttp.client_exceptions.ServerDisconnectedError:
+                                        pods = get_pods(namespace)["pods"]
+                                        log = ""
+                                        for pod in pods:
+                                            log += f"pod: {pod['name']}"
+                                            statuses = pod["container_statuses"]
+                                            for status in statuses:
+                                                if status["state"].get("terminated"):
+                                                    log += f" - terminated: {status['state']['terminated']['reason']}"
+                                                elif status["last_state"].get("terminated"):
+                                                    log += f" - terminated: {status['last_state']['terminated']['reason']}"
+                                        with open(f"{AUTO_TUNER_DIRECTORY}/../logs.txt", "a") as f:
+                                            f.write(f"config={config} - {log}\n")
+                                        delete_previous_deployment(service_name, namespace)
+                                        time.sleep(5)
+                                        break
+
     # ray.init(include_dashboard=False)
     # ray.tune.run(
     #     lambda config: start_experiment(config),
