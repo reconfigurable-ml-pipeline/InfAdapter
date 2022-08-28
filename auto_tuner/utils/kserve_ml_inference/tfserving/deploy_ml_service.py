@@ -14,7 +14,9 @@ def deploy_ml_service(
     volume_name = f"{service_name}-vol"
 
     max_batch_size = kwargs.pop("max_batch_size", None)
-    max_batch_latency = kwargs.pop("max_batch_latency", 1000)  # Fixme: add to config space
+    max_batch_latency = kwargs.pop("max_batch_latency", 10000)
+    num_batch_threads = kwargs.pop("num_batch_threads", kwargs.get("predictor_request_cpu"))
+    max_enqueued_batches = kwargs.pop("max_enqueued_batches", 1000000)
     enable_batching = False
     if max_batch_size is not None and max_batch_size > 1:
         enable_batching = True
@@ -56,8 +58,7 @@ def deploy_ml_service(
                   path: "/monitoring/prometheus/metrics"
                 }
             """,
-            # Fixme: Add num_batch_size to configuration space
-            "batch.config": get_batch_configuration(max_batch_size, max_batch_latency, kwargs["predictor_request_cpu"])
+            "batch.config": get_batch_configuration(max_batch_size, max_batch_latency, num_batch_threads, max_enqueued_batches)
         }
     )
     create_inference_service(service_name, namespace, **kwargs)

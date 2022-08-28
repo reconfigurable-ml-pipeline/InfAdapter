@@ -12,11 +12,10 @@ with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as 
 
 length = 5 * 60
 workload_pattern = list(map(int, workload_pattern.split()))
-workload_pattern = workload_pattern[length:2*length]
+workload_pattern = workload_pattern[18*length:19*length]
 
 workload_pattern = np.array(workload_pattern)
 
-print("total number of requests being sent", sum(workload_pattern))
 
 images = list(
     np.load(f"{AUTO_TUNER_DIRECTORY}/experiments/saved_inputs.npy", allow_pickle=True)
@@ -29,7 +28,7 @@ with open(f"{AUTO_TUNER_DIRECTORY}/experiments/imagenet_idx_to_label.json", "r")
 
 def warmup(url):
     print("Starting warmpu...")
-    for i in range(3):
+    for i in range(10):
         data = images[np.random.randint(0, 200)]
         requests.post(f"{url}", data=data["data"])
     print("Warmup done.")
@@ -66,6 +65,6 @@ def generate_workload(url):
     plt.legend()
     plt.savefig(f"{AUTO_TUNER_DIRECTORY}/../results/workload.png", format="png")
     plt.close()
-
+    print("total number of requests being sent", sum(workload_pattern))
     counter, failed = WorkloadGenerator().start()
     print(f"counter: {counter}, failed: {failed}")

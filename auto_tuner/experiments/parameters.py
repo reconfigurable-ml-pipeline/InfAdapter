@@ -9,7 +9,8 @@ class ParamTypes:
     MODEL_ARCHITECTURE = "ARCH"
     INTRA_OP_PARALLELISM = "INTRA_OP_PARALLELISM"
     INTER_OP_PARALLELISM = "INTER_OP_PARALLELISM"
-    # NUM_BATCH_THREADS = "NUM_BATCH_THREADS"
+    NUM_BATCH_THREADS = "NUM_BATCH_THREADS"
+    MAX_ENQUEUED_BATCHES = "MAX_ENQUEUED_BATCHES"
 
     @classmethod
     def get_all(cls):
@@ -23,5 +24,6 @@ class ParamTypes:
             cls.MODEL_ARCHITECTURE,
             cls.INTRA_OP_PARALLELISM,
             cls.INTER_OP_PARALLELISM,
-            # cls.NUM_BATCH_THREADS,
+            cls.NUM_BATCH_THREADS,
+            cls.MAX_ENQUEUED_BATCHES
         ]

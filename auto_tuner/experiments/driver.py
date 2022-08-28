@@ -26,8 +26,13 @@ repeat_results = []
 namespace = "mehran"
 service_name = "tfserving-resnet"
 
+EXPERIMENT_TYPE_STATIC = 1
+EXPERIMENT_TYPE_DYNAMIC = 2
 
-def start_experiment(config, repeat, max_repeat):
+STATIC_EXPERIMENT_REPEAT_COUNT = 2
+
+
+def start_experiment(config, repeat, experiment_type):
     global repeat_results
 
     # ip = os.popen(
@@ -58,32 +63,32 @@ def start_experiment(config, repeat, max_repeat):
 
     warmup(url)
     start_time = datetime.now().timestamp()
-    # generate_workload(url)
-    total_requests = 200
-    result, response_times = generate_load(url, total_requests)
-    fn = "-".join(map(lambda x: f"{x[0]}:{x[1]}", {**config, "repeat": repeat}.items()))
-    with open(f"{AUTO_TUNER_DIRECTORY}/../response_times/{fn}", "w") as f:
-        f.write(json.dumps(response_times))
-    # save_results(config, prom, start_time=start_time)
+    if experiment_type == EXPERIMENT_TYPE_STATIC:
+        total_requests = 300
+        print("total number of requests being sent", total_requests)
+        result, response_times = generate_load(url, total_requests)
+        fn = "-".join(map(lambda x: f"{x[0]}:{x[1]}", {**config, "repeat": repeat}.items()))
+        os.system(f"mkdir -p {AUTO_TUNER_DIRECTORY}/../response_times")
+        with open(f"{AUTO_TUNER_DIRECTORY}/../response_times/{fn}", "w") as f:
+            f.write(json.dumps(response_times))
+        repeat_results.append(result)
+    else:
+        generate_workload(url)
 
-    repeat_results.append(result)
-
-    if repeat == max_repeat:
+    if experiment_type == EXPERIMENT_TYPE_STATIC and repeat == STATIC_EXPERIMENT_REPEAT_COUNT:
         avg_result = {}
         for res in repeat_results:
             for k, v in res.items():
                 avg_result[k] = avg_result.get(k, 0) + v
         for k, v in avg_result.items():
             avg_result[k] = round(avg_result[k] / len(repeat_results), 2)
-        save_load_results(
-            config,
-            total=total_requests,
-            result=avg_result
-        )
+        save_load_results(config, total=total_requests, result=avg_result)
         delete_previous_deployment(service_name, namespace)
-        # time.sleep(10)
         time.sleep(5)
-
+    elif experiment_type == EXPERIMENT_TYPE_DYNAMIC:
+        save_results(config, prom, start_time=start_time)
+        delete_previous_deployment(service_name, namespace)
+        time.sleep(10)
 
 # tune_search_space = {
 #     ParamTypes.CPU: ray.tune.grid_search([4]),
@@ -97,16 +102,20 @@ def start_experiment(config, repeat, max_repeat):
 # }
 
 if __name__ == "__main__":
-    repeat_count = 2
-    for cpu in [2, 8, 32]:
-        for memory in [f"{cpu//2}G", f"{cpu}G", f"{cpu * 2}G"]:
-            for batch_size in [1, 32]:
-                for batch_timeout in [10000]:
-                    for arch in [18, 50, 152]:
-                        for interop in set([1, cpu // 2, cpu]):
-                            for intraop in set([1, cpu // 2, cpu]):
+    experiment_type = EXPERIMENT_TYPE_STATIC  # Set this before running experiment
+    for cpu in [2, 4, 8, 16, 32]:
+        for memory in ["4G"]:
+            for arch in [18, 34, 50, 101, 152]:
+                for batch_size in [1]:
+                    for batch_timeout in [10000]:
+                        for interop in set([cpu]):
+                            for intraop in set([1]):
                                 if interop == 1 and intraop == 1:
                                     continue
+                                if experiment_type == EXPERIMENT_TYPE_STATIC:
+                                    repeat_count = STATIC_EXPERIMENT_REPEAT_COUNT
+                                else:
+                                    repeat_count = 0
                                 for repeat in range(repeat_count + 1):
                                     try:
                                         config = {
@@ -119,7 +128,7 @@ if __name__ == "__main__":
                                             ParamTypes.INTER_OP_PARALLELISM: interop,
                                             ParamTypes.INTRA_OP_PARALLELISM: intraop
                                         }
-                                        start_experiment(config, repeat=repeat, max_repeat=repeat_count)
+                                        start_experiment(config, repeat=repeat, experiment_type=experiment_type)
                                     except aiohttp.client_exceptions.ServerDisconnectedError:
                                         pods = get_pods(namespace)["pods"]
                                         log = ""

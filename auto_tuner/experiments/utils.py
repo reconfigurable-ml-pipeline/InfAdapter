@@ -40,6 +40,8 @@ def apply_config(service_name: str, namespace: str, config: dict):
         predictor_min_replicas=config.get(ParamTypes.REPLICA),
         max_batch_size=config.get(ParamTypes.BATCH),
         max_batch_latency=config.get(ParamTypes.BATCH_TIMEOUT),
+        num_batch_threads=config.get(ParamTypes.NUM_BATCH_THREADS),
+        max_enqueued_batches=config.get(ParamTypes.MAX_ENQUEUED_BATCHES),
         predictor_args=[
             f"--tensorflow_intra_op_parallelism={config.get(ParamTypes.INTRA_OP_PARALLELISM)}",
             f"--tensorflow_inter_op_parallelism={config.get(ParamTypes.INTER_OP_PARALLELISM)}"
@@ -67,7 +69,10 @@ def delete_previous_deployment(service_name: str, namespace: str):
 def _get_value(prom_res):
     for tup in prom_res:
         if tup[1] != "NaN":
-            return tup[1]
+            v = float(tup[1])
+            if v > 1:
+                v = v / 1000
+            return round(v, 2)
 
 
 def save_results(config: dict, prom: PrometheusClient, start_time: int):
@@ -91,17 +96,18 @@ def save_results(config: dict, prom: PrometheusClient, start_time: int):
         filepath, 'a', newline=''
     ) as csvfile:
         params = ParamTypes.get_all()
-        field_names = [*params, "percent_708ms", "percentile_50", "percentile_95", "percentile_99"]
+        field_names = [*params, "percent_708ms", "p50", "p95", "p99", "timestamp"]
         writer = csv.DictWriter(csvfile, fieldnames=field_names)
         if not file_exists:
             writer.writeheader()
         writer.writerow(
             {
                 **config,
-                "percent_708ms": percent_708ms,
-                "percentile_50": percentile_50,
-                "percentile_95": percentile_95,
-                "percentile_99": percentile_99,
+                "percent_708ms": _get_value(percent_708ms),
+                "p50": _get_value(percentile_50),
+                "p95": _get_value(percentile_95),
+                "p99": _get_value(percentile_99),
+                "timestamp": datetime.now().isoformat()
             }
         )
     
