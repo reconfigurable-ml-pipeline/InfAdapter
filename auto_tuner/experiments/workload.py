@@ -68,3 +68,4 @@ def generate_workload(url):
     print("total number of requests being sent", sum(workload_pattern))
     counter, failed = WorkloadGenerator().start()
     print(f"counter: {counter}, failed: {failed}")
+    return counter, failed

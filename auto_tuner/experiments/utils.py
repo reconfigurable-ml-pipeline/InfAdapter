@@ -75,7 +75,7 @@ def _get_value(prom_res):
             return round(v, 2)
 
 
-def save_results(config: dict, prom: PrometheusClient, start_time: int):
+def save_results(config: dict, prom: PrometheusClient, total: int, failed: int, start_time: int):
     # Todo: Add CPU and memory usage
     percent_708ms = prom.get_instant(
         'sum(rate(:tensorflow:serving:runtime_latency_bucket{instance=~".*:8501", le = "708235"}[5m]))'
@@ -96,7 +96,7 @@ def save_results(config: dict, prom: PrometheusClient, start_time: int):
         filepath, 'a', newline=''
     ) as csvfile:
         params = ParamTypes.get_all()
-        field_names = [*params, "percent_708ms", "p50", "p95", "p99", "timestamp"]
+        field_names = [*params, "percent_708ms", "p50", "p95", "p99", "failed", "total", "timestamp"]
         writer = csv.DictWriter(csvfile, fieldnames=field_names)
         if not file_exists:
             writer.writeheader()
@@ -107,6 +107,8 @@ def save_results(config: dict, prom: PrometheusClient, start_time: int):
                 "p50": _get_value(percentile_50),
                 "p95": _get_value(percentile_95),
                 "p99": _get_value(percentile_99),
+                "failed": failed,
+                "total": total,
                 "timestamp": datetime.now().isoformat()
             }
         )

@@ -64,7 +64,7 @@ def start_experiment(config, repeat, experiment_type):
     warmup(url)
     start_time = datetime.now().timestamp()
     if experiment_type == EXPERIMENT_TYPE_STATIC:
-        total_requests = 300
+        total_requests, failed = 300, 0
         print("total number of requests being sent", total_requests)
         result, response_times = generate_load(url, total_requests)
         fn = "-".join(map(lambda x: f"{x[0]}:{x[1]}", {**config, "repeat": repeat}.items()))
@@ -73,7 +73,7 @@ def start_experiment(config, repeat, experiment_type):
             f.write(json.dumps(response_times))
         repeat_results.append(result)
     else:
-        generate_workload(url)
+        total_requests, failed = generate_workload(url)
 
     if experiment_type == EXPERIMENT_TYPE_STATIC and repeat == STATIC_EXPERIMENT_REPEAT_COUNT:
         avg_result = {}
@@ -86,7 +86,7 @@ def start_experiment(config, repeat, experiment_type):
         delete_previous_deployment(service_name, namespace)
         time.sleep(5)
     elif experiment_type == EXPERIMENT_TYPE_DYNAMIC:
-        save_results(config, prom, start_time=start_time)
+        save_results(config, prom, total=total_requests, failed=failed, start_time=start_time)
         delete_previous_deployment(service_name, namespace)
         time.sleep(10)
 
