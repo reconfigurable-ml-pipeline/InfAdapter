@@ -1,0 +1,42 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: tfserving-resnet
+  namespace: mehran
+  labels:
+    inference_framework: kserve
+    ML_framework: tensorflow
+    model_server: tfserving
+spec:
+  predictor:
+    containers:
+      - name: tfserving_resnet_container
+        image: tensorflow/serving:2.8.0
+        ports:
+          - containerPort: 8501
+          - containerPort: 8500
+        args:
+          - --model_config_file=/etc/tfserving/models.config
+          - --model_config_file_poll_wait_seconds=10  # Use HandleReloadConfigRequest RPC request instead
+          - --enable_batching=true
+          - --batching_parameters_file=/etc/tfserving/batch.config
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "4"
+          limits:
+            memory: "4Gi"
+            cpu: "4"
+        volumeMounts:
+          - name: tfserving-resnet-vol
+            mountPath: /etc/tfserving
+          - name: tfserving-models-vol
+            mountPath: /models/resnet
+    volumes:
+      - name: tfserving-resnet-vol
+        configMap:
+          name: tfserving-resnet-cm
+      - name: tfserving-models-vol
+        nfs:
+          server: 192.5.86.160
+          path: /fileshare/tensorflow_resnet_b64

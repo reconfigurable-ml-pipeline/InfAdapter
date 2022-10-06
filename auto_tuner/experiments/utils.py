@@ -24,7 +24,11 @@ def is_config_valid(c: dict) -> bool:
     return True
 
 
-def apply_config(service_name: str, namespace: str, config: dict):
+def apply_config(service_name: str, namespace: str, config: dict, hardware = ParamTypes.HARDWARE_CPU):
+    if hardware == ParamTypes.HARDWARE_CPU:
+        image = "tensorflow/serving:2.8.0"
+    else:
+        image = "tensorflow/serving:2.8.0-gpu"
     deploy_ml_service(
         service_name=service_name,
         active_model_version=config.get(ParamTypes.MODEL_ARCHITECTURE),
@@ -32,7 +36,7 @@ def apply_config(service_name: str, namespace: str, config: dict):
         selector={"inference_framework": "kserve", "ML_framework": "tensorflow", "model_server": "tfserving"},
         predictor_container_ports=[8501, 8500],
         # predictor_container_ports=[8501, 8500, 9081],
-        predictor_image="mehransi/main:tfserving_resnet_b64",
+        predictor_image=image,
         predictor_request_mem=config.get(ParamTypes.MEMORY),
         predictor_request_cpu=config.get(ParamTypes.CPU),
         predictor_limit_mem=config.get(ParamTypes.MEMORY),
@@ -66,87 +70,58 @@ def delete_previous_deployment(service_name: str, namespace: str):
     # delete_kubernetes_service(f"{service_name}-batch", namespace=namespace)
 
 
-def _get_value(prom_res):
-    for tup in prom_res:
-        if tup[1] != "NaN":
-            v = float(tup[1])
-            if v > 1:
-                v = v / 1000
-            return round(v, 2)
+def _get_value(prom_res, divide_by=1, should_round=True):
+        for tup in prom_res:
+            if tup[1] != "NaN":
+                v = float(tup[1]) / divide_by
+                if should_round:
+                    return round(v, 2)
+                return v
 
 
-def save_results(config: dict, prom: PrometheusClient, total: int, failed: int, start_time: int):
+def save_results(config: dict, prom: PrometheusClient, total: int, failed: int, start_time: float):
     # Todo: Add CPU and memory usage
+    duration_int = round(datetime.now().timestamp() - start_time)
     percent_708ms = prom.get_instant(
-        'sum(rate(:tensorflow:serving:runtime_latency_bucket{instance=~".*:8501", le = "708235"}[5m]))'
-        ' / sum(rate(:tensorflow:serving:request_latency_count{instance=~".*:8501"}[5m]))'
+        f'sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", le = "708235"}}[{duration_int}s]))'
+        f' / sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
     )
-    percentile_50 = prom.get_instant(
-        'histogram_quantile(0.50, rate(:tensorflow:serving:request_latency_bucket{instance=~".*:8501"}[5m]))'
+    average_latency = prom.get_instant(
+        f'sum(rate(:tensorflow:serving:request_latency_sum{{instance=~".*:8501"}}[{duration_int}s]))'
+        f' / sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
     )
-    percentile_95 = prom.get_instant(
-        'histogram_quantile(0.95, rate(:tensorflow:serving:request_latency_bucket{instance=~".*:8501"}[5m]))'
-    )
+    average_latency = _get_value(average_latency, divide_by=1000, should_round=False)
     percentile_99 = prom.get_instant(
-        'histogram_quantile(0.99, rate(:tensorflow:serving:request_latency_bucket{instance=~".*:8501"}[5m]))'
+        f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501"}}[{duration_int}s])) by (le))'
+    )
+    rate = prom.get_instant(
+        f'sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
+    )
+    queueing_delay_p99 = prom.get_instant(
+        f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:batching_session:queuing_latency_bucket{{instance=~".*:8501"}}[{duration_int}s])) by(le))'
     )
     filepath = f'{AUTO_TUNER_DIRECTORY}/../results/experiment_result.csv'
     file_exists = os.path.exists(filepath)
+    row = {
+        **config,
+        "percent_708ms": _get_value(percent_708ms),
+        "rate": _get_value(rate),
+        "1/avg_latency": round(1000 / average_latency, 2) if average_latency else None,
+        "p99": _get_value(percentile_99, divide_by=1000),
+        "p99_queueing": _get_value(queueing_delay_p99, 1000),
+        "failed": failed,
+        "total": total,
+        "duration": duration_int,
+        "timestamp": datetime.now().isoformat()
+    }
     with open(
         filepath, 'a', newline=''
     ) as csvfile:
-        params = ParamTypes.get_all()
-        field_names = [*params, "percent_708ms", "p50", "p95", "p99", "failed", "total", "timestamp"]
+        field_names = list(row.keys())
         writer = csv.DictWriter(csvfile, fieldnames=field_names)
         if not file_exists:
             writer.writeheader()
-        writer.writerow(
-            {
-                **config,
-                "percent_708ms": _get_value(percent_708ms),
-                "p50": _get_value(percentile_50),
-                "p95": _get_value(percentile_95),
-                "p99": _get_value(percentile_99),
-                "failed": failed,
-                "total": total,
-                "timestamp": datetime.now().isoformat()
-            }
-        )
-    
-    # print("------------------------------")
-    # end_time = (datetime.now() + timedelta(seconds=20)).timestamp()
-    # request_rates = prom.get_range(
-    #     'sum(:tensorflow:serving:request_latency_count{instance=~".*:8501"})',
-    #     start_time=start_time,
-    #     end_time=end_time,
-    #     step=1
-    # )
-    # if not request_rates:
-    #     return
-    
-    # values = list(map(lambda x: int(x[1]), request_rates))
-    # print("last value", values[-1])
-    # print("monitoring workload", len(values), values)
-    # for i in range(len(values)-1, 0, -1):
-    #     values[i] = values[i] - values[i-1]
-    # while True:
-    #     if values[-1] == 0:
-    #         values.pop(-1)
-    #     else:
-    #         break
-    # if values[:2] in [[0,3], [3,0]]:
-    #     values = values[2:]
-    # elif values[0] == 3:
-    #     values = values[1:]
-    # print("monitoring workload after", len(values), values)
-    
-    # print("sum values", sum(values))
-
-    # plt.xlabel("time (seconds)")
-    # plt.plot(range(1, len(values) + 1), values, label="request count")
-    # plt.legend()
-    # plt.savefig("load_monitoring.png", format="png")
-    # plt.close()
+        writer.writerow(row)
 
 
 def save_load_results(config: dict, total: int, result: dict):

@@ -11,19 +11,26 @@ def deploy_ml_service(
 ):
     volume_mount_path = "/etc/tfserving"
     configmap_name = f"{service_name}-cm"
-    volume_name = f"{service_name}-vol"
+    config_volume_name = f"{service_name}-config-vol"
+    models_volume_name = f"{service_name}-models-vol"
 
     max_batch_size = kwargs.pop("max_batch_size", None)
-    max_batch_latency = kwargs.pop("max_batch_latency", 10000)
-    num_batch_threads = kwargs.pop("num_batch_threads", kwargs.get("predictor_request_cpu"))
-    max_enqueued_batches = kwargs.pop("max_enqueued_batches", 1000000)
+    max_batch_latency = kwargs.pop("max_batch_latency", None)
+    if max_batch_latency is None:
+        max_batch_latency = 10000
+    num_batch_threads = kwargs.pop("num_batch_threads", None)
+    if num_batch_threads is None:
+        num_batch_threads = kwargs.get("predictor_request_cpu")
+    max_enqueued_batches = kwargs.pop("max_enqueued_batches", None)
+    if max_enqueued_batches is None:
+        max_enqueued_batches = 1000000
     enable_batching = False
     if max_batch_size is not None and max_batch_size > 1:
         enable_batching = True
     
-    if not kwargs.get("predictor_env_vars"):
-        kwargs["predictor_env_vars"] = {}
-    kwargs["predictor_env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
+    # if not kwargs.get("predictor_env_vars"):
+    #     kwargs["predictor_env_vars"] = {}
+    # kwargs["predictor_env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
 
     if not kwargs.get("predictor_args"):
         kwargs["predictor_args"] = []
@@ -41,11 +48,17 @@ def deploy_ml_service(
 
     if not kwargs.get("volumes"):
         kwargs["volumes"] = []
-    kwargs["volumes"].append({"name": volume_name, "config_map": {"name": configmap_name}})
+    kwargs["volumes"].append(
+        {"name": config_volume_name, "config_map": {"name": configmap_name}}
+    )
+    kwargs["volumes"].append(
+        {"name": models_volume_name, "nfs": {"server": "192.5.86.160", "path": "/fileshare/tensorflow_resnet_b64"}}
+    )
 
     if not kwargs.get("predictor_volume_mounts"):
         kwargs["predictor_volume_mounts"] = []
-    kwargs["predictor_volume_mounts"].append({"name": volume_name, "mount_path": "/etc/tfserving"})
+    kwargs["predictor_volume_mounts"].append({"name": config_volume_name, "mount_path": "/etc/tfserving"})
+    kwargs["predictor_volume_mounts"].append({"name": models_volume_name, "mount_path": "/models/resnet"})
 
     create_configmap(
         configmap_name,
@@ -58,7 +71,12 @@ def deploy_ml_service(
                   path: "/monitoring/prometheus/metrics"
                 }
             """,
-            "batch.config": get_batch_configuration(max_batch_size, max_batch_latency, num_batch_threads, max_enqueued_batches)
+            "batch.config": get_batch_configuration(
+                max_batch_size, 
+                max_batch_latency, 
+                num_batch_threads, 
+                max_enqueued_batches
+            )
         }
     )
     create_inference_service(service_name, namespace, **kwargs)
