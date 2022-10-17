@@ -1,13 +1,19 @@
-from auto_tuner.utils.kserve_ml_inference.tfserving.serving_configuration import (
+from auto_tuner.utils.ml_inference.tfserving.serving_configuration import (
     get_serving_configuration, get_batch_configuration
 )
 from kube_resources.configmaps import create_configmap
-from kube_resources.kserve import create_inference_service
+from kube_resources.deployments import create_deployment
 from kube_resources.services import create_service as create_kubernetes_service
 
 
 def deploy_ml_service(
-        service_name: str, active_model_version: int, selector: dict, namespace="default", **kwargs
+        service_name: str,
+        image:str, 
+        replicas: int, 
+        active_model_version: int, 
+        selector: dict, 
+        namespace="default", 
+        **kwargs
 ):
     volume_mount_path = "/etc/tfserving"
     configmap_name = f"{service_name}-cm"
@@ -20,7 +26,7 @@ def deploy_ml_service(
         max_batch_latency = 10000
     num_batch_threads = kwargs.pop("num_batch_threads", None)
     if num_batch_threads is None:
-        num_batch_threads = kwargs.get("predictor_request_cpu")
+        num_batch_threads = kwargs.get("request_cpu")
     max_enqueued_batches = kwargs.pop("max_enqueued_batches", None)
     if max_enqueued_batches is None:
         max_enqueued_batches = 1000000
@@ -28,19 +34,19 @@ def deploy_ml_service(
     if max_batch_size is not None and max_batch_size > 1:
         enable_batching = True
     
-    # if not kwargs.get("predictor_env_vars"):
-    #     kwargs["predictor_env_vars"] = {}
-    # kwargs["predictor_env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
+    # if not kwargs.get("env_vars"):
+    #     kwargs["env_vars"] = {}
+    # kwargs["env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
 
-    if not kwargs.get("predictor_args"):
-        kwargs["predictor_args"] = []
-    kwargs["predictor_args"].extend([
+    if not kwargs.get("args"):
+        kwargs["args"] = []
+    kwargs["args"].extend([
         f"--model_config_file={volume_mount_path}/models.config",
         f"--monitoring_config_file={volume_mount_path}/monitoring.config",
         f"--enable_batching={'true' if enable_batching else 'false'}",   
     ])
     if enable_batching:
-        kwargs["predictor_args"].append(f"--batching_parameters_file={volume_mount_path}/batch.config")
+        kwargs["args"].append(f"--batching_parameters_file={volume_mount_path}/batch.config")
 
     if not kwargs.get("labels"):
         kwargs["labels"] = {}
@@ -55,10 +61,10 @@ def deploy_ml_service(
         {"name": models_volume_name, "nfs": {"server": "192.5.86.160", "path": "/fileshare/tensorflow_resnet_b64"}}
     )
 
-    if not kwargs.get("predictor_volume_mounts"):
-        kwargs["predictor_volume_mounts"] = []
-    kwargs["predictor_volume_mounts"].append({"name": config_volume_name, "mount_path": "/etc/tfserving"})
-    kwargs["predictor_volume_mounts"].append({"name": models_volume_name, "mount_path": "/models/resnet"})
+    if not kwargs.get("volume_mounts"):
+        kwargs["volume_mounts"] = []
+    kwargs["volume_mounts"].append({"name": config_volume_name, "mount_path": "/etc/tfserving"})
+    kwargs["volume_mounts"].append({"name": models_volume_name, "mount_path": "/models/resnet"})
 
     create_configmap(
         configmap_name,
@@ -79,7 +85,7 @@ def deploy_ml_service(
             )
         }
     )
-    create_inference_service(service_name, namespace, **kwargs)
+    create_deployment(service_name, image, replicas, namespace=namespace, **kwargs)
     create_kubernetes_service(
         f"{service_name}-grpc",
         target_port=8500,

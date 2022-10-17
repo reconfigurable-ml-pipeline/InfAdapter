@@ -1,4 +1,4 @@
-from auto_tuner.utils.kserve_ml_inference import switch_model, deploy_ml_service, CURRENT_MODEL_KEY
+from auto_tuner.utils.ml_inference import switch_model, deploy_ml_service, CURRENT_MODEL_KEY
 
 
 class AutoConfiguration:

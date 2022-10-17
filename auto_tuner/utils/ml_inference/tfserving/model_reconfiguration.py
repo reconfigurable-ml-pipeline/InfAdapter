@@ -5,7 +5,7 @@ from tensorflow_serving.apis import model_service_pb2_grpc, model_management_pb2
 
 from kube_resources.services import get_endpoints
 from kube_resources.configmaps import update_configmap
-from auto_tuner.utils.kserve_ml_inference.tfserving.serving_configuration import (
+from auto_tuner.utils.ml_inference.tfserving.serving_configuration import (
     get_serving_configuration, get_batch_configuration
 )
 

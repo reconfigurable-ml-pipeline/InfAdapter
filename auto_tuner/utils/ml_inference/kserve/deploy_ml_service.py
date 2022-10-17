@@ -1,7 +1,7 @@
 from kube_resources.configmaps import create_configmap
 from kube_resources.kserve import create_inference_service
 from kube_resources.services import create_service as create_kubernetes_service
-from auto_tuner.utils.kserve_ml_inference.kserve.constants import CURRENT_MODEL_KEY
+from auto_tuner.utils.ml_inference.kserve.constants import CURRENT_MODEL_KEY
 
 
 def deploy_ml_service(

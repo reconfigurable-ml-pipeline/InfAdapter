@@ -1,18 +1,16 @@
 import time
 import os
-from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-import json
+from datetime import datetime
 import csv
 
 from kube_resources.deployments import get_deployment
 from kube_resources.configmaps import delete_configmap
-from kube_resources.kserve import delete_inference_service
+from kube_resources.deployments import delete_deployment
 from kube_resources.services import delete_service as delete_kubernetes_service
 
 from auto_tuner import AUTO_TUNER_DIRECTORY
 from auto_tuner.experiments.parameters import ParamTypes
-from auto_tuner.utils.kserve_ml_inference.tfserving import deploy_ml_service
+from auto_tuner.utils.ml_inference.tfserving import deploy_ml_service
 from auto_tuner.utils.prometheus import PrometheusClient
 
 
@@ -31,22 +29,22 @@ def apply_config(service_name: str, namespace: str, config: dict, hardware = Par
         image = "tensorflow/serving:2.8.0-gpu"
     deploy_ml_service(
         service_name=service_name,
+        image=image,
+        replicas=config.get(ParamTypes.REPLICA),
         active_model_version=config.get(ParamTypes.MODEL_ARCHITECTURE),
         namespace=namespace,
         selector={"inference_framework": "kserve", "ML_framework": "tensorflow", "model_server": "tfserving"},
-        predictor_container_ports=[8501, 8500],
-        # predictor_container_ports=[8501, 8500, 9081],
-        predictor_image=image,
-        predictor_request_mem=config.get(ParamTypes.MEMORY),
-        predictor_request_cpu=config.get(ParamTypes.CPU),
-        predictor_limit_mem=config.get(ParamTypes.MEMORY),
-        predictor_limit_cpu=config.get(ParamTypes.CPU),
-        predictor_min_replicas=config.get(ParamTypes.REPLICA),
+        container_ports=[8501, 8500],
+        # container_ports=[8501, 8500, 9081],
+        request_mem=config.get(ParamTypes.MEMORY),
+        request_cpu=config.get(ParamTypes.CPU),
+        limit_mem=config.get(ParamTypes.MEMORY),
+        limit_cpu=config.get(ParamTypes.CPU),
         max_batch_size=config.get(ParamTypes.BATCH),
         max_batch_latency=config.get(ParamTypes.BATCH_TIMEOUT),
         num_batch_threads=config.get(ParamTypes.NUM_BATCH_THREADS),
         max_enqueued_batches=config.get(ParamTypes.MAX_ENQUEUED_BATCHES),
-        predictor_args=[
+        args=[
             f"--tensorflow_intra_op_parallelism={config.get(ParamTypes.INTRA_OP_PARALLELISM)}",
             f"--tensorflow_inter_op_parallelism={config.get(ParamTypes.INTER_OP_PARALLELISM)}"
         ]
@@ -63,7 +61,7 @@ def wait_till_pods_are_ready(deploy_name: str, namespace: str):
 
 
 def delete_previous_deployment(service_name: str, namespace: str):
-    delete_inference_service(service_name, namespace=namespace)
+    delete_deployment(service_name, namespace=namespace)
     delete_configmap(f"{service_name}-cm", namespace)
     delete_kubernetes_service(f"{service_name}-rest", namespace=namespace)
     delete_kubernetes_service(f"{service_name}-grpc", namespace=namespace)
