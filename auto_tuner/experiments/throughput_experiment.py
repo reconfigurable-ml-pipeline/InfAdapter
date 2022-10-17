@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 import csv
 import os
+import json
 from kube_resources.services import get_service
 from auto_tuner import AUTO_TUNER_DIRECTORY
 from auto_tuner.experiments.parameters import ParamTypes
@@ -21,14 +22,35 @@ images = list(
     np.load(f"{AUTO_TUNER_DIRECTORY}/experiments/saved_inputs.npy", allow_pickle=True)
 )
 
+with open(f"{AUTO_TUNER_DIRECTORY}/experiments/imagenet_idx_to_label.json", "r") as f:
+    idx_to_label = json.load(f)
+    
+with open(f"{AUTO_TUNER_DIRECTORY}/experiments/imagenet_code_to_label.json", "r") as f:
+    code_to_label = json.load(f)
+    
+
 namespace = "mehran"
 service_name = "tfserving-resnet"
+
+prev_server_count = None
 
 
 async def predict(session: ClientSession, url, data):
     try:
         async with session.post(url, data=data["data"]) as response:
             response = await response.json()
+            if "outputs" in response.keys():
+                prediction = response['outputs'][0]
+                idx = np.argmax(prediction)
+                t5 = (-np.array(prediction)).argsort()[:5]
+                correct_top5 = False
+                for idx in t5:
+                    if idx_to_label[str(idx)] == code_to_label[data["label_code"]]:
+                        correct_top5 = True
+                        break
+                return correct_top5
+            else:
+                print("error", response)
     except Exception as e:
         print(e.__class__.__name__)
     return
@@ -49,6 +71,7 @@ def warmup(url):
 
 
 async def generate_load(url, lmbda, config, prom):
+    global server_count
     print("starting load generation...")
     print("config", config)
     tasks = []
@@ -65,7 +88,7 @@ async def generate_load(url, lmbda, config, prom):
             current_time += next_time
             count += 1
     
-        await asyncio.gather(*tasks)
+        returns = await asyncio.gather(*tasks)
 
     def _get_value(prom_res, divide_by=1, should_round=True):
         for tup in prom_res:
@@ -99,6 +122,10 @@ async def generate_load(url, lmbda, config, prom):
     server_count = _get_value(server_count)
     if server_count:
         server_count -= warmup_count
+        temp = server_count
+        if prev_server_count:
+            server_count -= prev_server_count
+        prev_server_count = temp
 
     return {
         "percent_708ms": _get_value(percent_708ms),
@@ -108,8 +135,9 @@ async def generate_load(url, lmbda, config, prom):
         "1/avg_latency": round(1000 / average_latency, 2) if average_latency else None,
         "p99_queueing": _get_value(queueing_delay_p99, 1000),
         "client_count": count,
+        "success_count": returns.count(True),
         "duration": round(duration, 2),
-        "server_count": server_count
+        "server_count": server_count,
     }
 
 
@@ -140,7 +168,9 @@ def start_service(hardware, cpu, mem, arch, batch, num_batch_threads, max_enqueu
 
 
 def delete_service():
+    global prev_server_count
     delete_previous_deployment(service_name, namespace)
+    prev_server_count = None
 
 
 if __name__ == "__main__":
@@ -161,13 +191,13 @@ if __name__ == "__main__":
                             for meb in [1000000]:
                                 for intra_op in [1, cpu]:
                                     for inter_op in [1, cpu]:
-                                        if inter_op == intra_op == 1:
-                                            continue
+                                        # if inter_op == intra_op == 1:
+                                        #     continue
                                         config = start_service(hw, cpu, mem, arch, batch, nbt, meb, intra_op, inter_op)
                                         port = get_service(f"tfserving-resnet-rest", "mehran")["node_port"]
                                         url = f"http://{ip}:{port}/v1/models/resnet:predict"
                                         warmup(url)
-                                        for lmbda in [40, 50, 60, 70, 80, 90, 100]:
+                                        for lmbda in [20, 40, 60, 80, 100, 120]:
                                             result = asyncio.run(generate_load(url, lmbda, config, prom))
                                             filepath = f'{AUTO_TUNER_DIRECTORY}/../results/throughput_result.csv'
                                             file_exists = os.path.exists(filepath)
