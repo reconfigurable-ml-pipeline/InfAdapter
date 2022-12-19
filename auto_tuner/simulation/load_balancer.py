@@ -1,9 +1,9 @@
 from typing import List
 import simpy
 
-from auto_tuner.envs.simulation.kube_cluster import SimulatedCluster
-from auto_tuner.envs.simulation.monitoring import Monitoring
-from auto_tuner.envs.simulation.requests import Request
+from auto_tuner.simulation.kube_cluster import SimulatedCluster
+from auto_tuner.simulation.monitoring import Monitoring
+from auto_tuner.simulation.requests import Request
 
 
 class LoadBalancer:

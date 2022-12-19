@@ -1,4 +1,4 @@
-from auto_tuner.utils.ml_inference import switch_model, deploy_ml_service, CURRENT_MODEL_KEY
+from auto_tuner.utils.tfserving import switch_model, deploy_ml_service
 
 
 class AutoConfiguration:
@@ -29,8 +29,8 @@ class AutoConfiguration:
             predictor_container_ports=[self.target_port], transformer_container_ports=[self.target_port],
         )
 
-    def switch_model(self, new_model: str):
+    def switch_model(self, new_model_version: str):
         switch_model(
-            configmap_name=self.configmap_name, namespace=self.namespace, service_name=self.service_name,
-            target_port=self.target_port, new_model=new_model
+            namespace=self.namespace, service_name=self.service_name,
+            target_port=self.target_port, new_model=new_model_version
         )

@@ -1,11 +1,11 @@
 import sys
 
-from auto_tuner.envs.simulation.load_balancer import LoadBalancer
-from auto_tuner.envs.simulation.monitoring import Monitoring
-from auto_tuner.envs.simulation.requests import RequestGenerator
-from auto_tuner.autoscalers import recommenders
-from auto_tuner.envs.simulation.kube_cluster import SimulatedCluster
-from auto_tuner.config import get_environment_config
+from auto_tuner.simulation.load_balancer import LoadBalancer
+from auto_tuner.simulation.monitoring import Monitoring
+from auto_tuner.simulation.requests import RequestGenerator
+from auto_tuner.simulation.autoscalers import recommenders
+from auto_tuner.simulation.kube_cluster import SimulatedCluster
+from auto_tuner.simulation.config import get_environment_config
 
 
 class Runner:

@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 
 from auto_tuner import AUTO_TUNER_DIRECTORY
-from auto_tuner.envs.simulation.kube_cluster import SimulatedCluster
-from auto_tuner.envs.simulation.monitoring import Monitoring
-from auto_tuner.autoscalers.base import RecommenderBase
+from auto_tuner.simulation.kube_cluster import SimulatedCluster
+from auto_tuner.simulation.monitoring import Monitoring
+from auto_tuner.simulation.autoscalers.base import RecommenderBase
 
 
 class BiLSTMRecommender(RecommenderBase):

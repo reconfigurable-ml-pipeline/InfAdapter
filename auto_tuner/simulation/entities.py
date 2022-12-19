@@ -6,7 +6,7 @@ from typing import List
 import simpy
 from kubernetes.client.models import V1ResourceRequirements
 
-from auto_tuner.envs.simulation.requests import Request
+from auto_tuner.simulation.requests import Request
 
 
 class Pod:

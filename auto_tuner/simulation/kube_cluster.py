@@ -4,7 +4,7 @@ import simpy
 from gym.spaces import Box
 from gym.utils import seeding
 
-from auto_tuner.envs.simulation.entities import Cluster, Pod, HPA, Service
+from auto_tuner.simulation.entities import Cluster, Pod, HPA, Service
 
 
 class SimulatedCluster(gym.Env):

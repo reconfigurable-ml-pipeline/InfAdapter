@@ -1,4 +1,4 @@
-from auto_tuner.envs.simulation.kube_cluster import SimulatedCluster
+from auto_tuner.simulation.kube_cluster import SimulatedCluster
 
 
 class Monitoring:

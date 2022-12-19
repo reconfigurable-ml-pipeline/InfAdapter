@@ -1,4 +1,4 @@
-from auto_tuner.utils.ml_inference.tfserving.serving_configuration import (
+from auto_tuner.utils.tfserving.serving_configuration import (
     get_serving_configuration, get_batch_configuration
 )
 from kube_resources.configmaps import create_configmap

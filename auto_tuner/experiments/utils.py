@@ -10,7 +10,7 @@ from kube_resources.services import delete_service as delete_kubernetes_service
 
 from auto_tuner import AUTO_TUNER_DIRECTORY
 from auto_tuner.experiments.parameters import ParamTypes
-from auto_tuner.utils.ml_inference.tfserving import deploy_ml_service
+from auto_tuner.utils.tfserving import deploy_ml_service
 from auto_tuner.utils.prometheus import PrometheusClient
 
 
