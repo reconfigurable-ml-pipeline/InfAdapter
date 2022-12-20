@@ -8,18 +8,15 @@ from kube_resources.configmaps import update_configmap
 from auto_tuner.utils.tfserving.serving_configuration import get_serving_configuration
 
 
-def switch_model(
-        namespace: str,
-        service_name: str,
-        target_port: int,
-        new_model_version: int,
-):
-    configmap_name = f"{service_name}-cm"
-    model_platform = "tensorflow"
-    model_name = "resnet"
-    base_path = f"/models/{model_name}/"
+model_platform = "tensorflow"
+model_name = "resnet"
+base_path = f"/models/{model_name}/"
 
-    def request_pod_to_switch_model(stub, request):
+
+def request_pod_to_switch_model_version(endpoint, new_model_version):
+    with grpc.insecure_channel(endpoint) as channel:
+        stub = model_service_pb2_grpc.ModelServiceStub(channel)
+        request = model_management_pb2.ReloadConfigRequest()
         model_server_config = model_server_config_pb2.ModelServerConfig()
         config_list = model_server_config_pb2.ModelConfigList()
         config = config_list.config.add()
@@ -39,16 +36,22 @@ def switch_model(
 
         return stub.HandleReloadConfigRequest(request)
 
+
+def switch_model(
+        namespace: str,
+        service_name: str,
+        target_port: int,
+        new_model_version: int,
+):
+    configmap_name = f"{service_name}-cm"
+    
     def request_all_pods_to_switch_model():
         endpoints = get_endpoints(f"{service_name}-grpc", target_port, namespace=namespace)
         for endpoint in endpoints:
-            with grpc.insecure_channel(endpoint) as channel:
-                stub = model_service_pb2_grpc.ModelServiceStub(channel)
-                request = model_management_pb2.ReloadConfigRequest()
-                r = request_pod_to_switch_model(stub, request)
-                # Todo: do something in case error_code is non-zero
-                print("response error code", r.status.error_code)
-                print("response error message", r.status.error_message)
+            r = request_pod_to_switch_model_version(endpoint, new_model_version)
+            # Todo: do something in case error_code is non-zero
+            print("response error code", r.status.error_code)
+            print("response error message", r.status.error_message)
 
     update_configmap(
         configmap_name,
@@ -62,4 +65,3 @@ def switch_model(
     )
  
     request_all_pods_to_switch_model()
-
