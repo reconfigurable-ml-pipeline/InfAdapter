@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 import asyncio
 from aiohttp import ClientSession
-from auto_tuner.experiments.parameters import ParamTypes
+from auto_tuner.parameters import ParamTypes
 from auto_tuner.experiments.utils import apply_config, delete_previous_deployment, wait_till_pods_are_ready
 
 

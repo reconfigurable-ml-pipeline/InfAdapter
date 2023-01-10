@@ -5,7 +5,7 @@ from datetime import datetime
 
 from kube_resources.services import get_service
 from auto_tuner import AUTO_TUNER_DIRECTORY
-from auto_tuner.experiments.parameters import ParamTypes
+from auto_tuner.parameters import ParamTypes
 from auto_tuner.experiments.utils import (
     apply_config,
     wait_till_pods_are_ready,

@@ -9,7 +9,7 @@ from kube_resources.deployments import delete_deployment
 from kube_resources.services import delete_service as delete_kubernetes_service
 
 from auto_tuner import AUTO_TUNER_DIRECTORY
-from auto_tuner.experiments.parameters import ParamTypes
+from auto_tuner.parameters import ParamTypes
 from auto_tuner.utils.tfserving import deploy_ml_service
 from auto_tuner.utils.prometheus import PrometheusClient
 
@@ -33,9 +33,8 @@ def apply_config(service_name: str, namespace: str, config: dict, hardware = Par
         replicas=config.get(ParamTypes.REPLICA),
         active_model_version=config.get(ParamTypes.MODEL_ARCHITECTURE),
         namespace=namespace,
-        selector={"inference_framework": "kserve", "ML_framework": "tensorflow", "model_server": "tfserving"},
+        selector={"ML_framework": "tensorflow", "model_server": "tfserving"},
         container_ports=[8501, 8500],
-        # container_ports=[8501, 8500, 9081],
         request_mem=config.get(ParamTypes.MEMORY),
         request_cpu=config.get(ParamTypes.CPU),
         limit_mem=config.get(ParamTypes.MEMORY),

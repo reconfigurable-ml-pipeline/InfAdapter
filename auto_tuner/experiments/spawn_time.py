@@ -5,7 +5,7 @@ from datetime import datetime
 
 from kube_resources.deployments import get_deployment
 from auto_tuner import AUTO_TUNER_DIRECTORY
-from auto_tuner.experiments.parameters import ParamTypes
+from auto_tuner.parameters import ParamTypes
 from auto_tuner.experiments.utils import (
     apply_config,
     delete_previous_deployment,

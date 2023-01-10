@@ -8,7 +8,6 @@ from kube_resources.services import create_service as create_kubernetes_service
 
 def deploy_ml_service(
         service_name: str,
-        image:str, 
         replicas: int, 
         active_model_version: int, 
         selector: dict, 
@@ -19,6 +18,8 @@ def deploy_ml_service(
     configmap_name = f"{service_name}-cm"
     config_volume_name = f"{service_name}-config-vol"
     models_volume_name = f"{service_name}-models-vol"
+    
+    kwargs.setdefault("name", f"{service_name}-container")
 
     max_batch_size = kwargs.pop("max_batch_size", None)
     max_batch_latency = kwargs.pop("max_batch_latency", None)
@@ -51,6 +52,8 @@ def deploy_ml_service(
     if not kwargs.get("labels"):
         kwargs["labels"] = {}
     kwargs["labels"].update(selector)
+    
+    labels = kwargs.pop("labels")
 
     if not kwargs.get("volumes"):
         kwargs["volumes"] = []
@@ -60,6 +63,8 @@ def deploy_ml_service(
     kwargs["volumes"].append(
         {"name": models_volume_name, "nfs": {"server": "192.5.86.160", "path": "/fileshare/tensorflow_resnet_b64"}}
     )
+    
+    volumes = kwargs.pop("volumes")
 
     if not kwargs.get("volume_mounts"):
         kwargs["volume_mounts"] = []
@@ -85,7 +90,14 @@ def deploy_ml_service(
             )
         }
     )
-    create_deployment(service_name, image, replicas, namespace=namespace, **kwargs)
+    create_deployment(
+        service_name, 
+        containers=[kwargs], 
+        replicas=replicas, 
+        namespace=namespace, 
+        labels=labels, 
+        volumes=volumes
+    )
     create_kubernetes_service(
         f"{service_name}-grpc",
         target_port=8500,
