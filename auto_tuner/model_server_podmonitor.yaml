@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+ name: tfserving-podmonitor
+ namespace: monitoring
+ labels:
+   podmonitor: tfserving
+spec:
+ namespaceSelector:
+   any: true
+ podMetricsEndpoints:
+ - interval: 1s
+   path: /monitoring/prometheus/metrics
+ selector:
+   matchLabels:
+     model_server: tfserving

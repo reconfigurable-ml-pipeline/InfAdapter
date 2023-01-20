@@ -1,3 +1,5 @@
+import os
+
 from auto_tuner.utils.tfserving.serving_configuration import (
     get_serving_configuration, get_batch_configuration
 )
@@ -61,14 +63,14 @@ def deploy_ml_service(
         {"name": config_volume_name, "config_map": {"name": configmap_name}}
     )
     kwargs["volumes"].append(
-        {"name": models_volume_name, "nfs": {"server": "192.5.86.160", "path": "/fileshare/tensorflow_resnet_b64"}}
+        {"name": models_volume_name, "nfs": {"server": os.getenv("NFS_SERVER"), "path": "/fileshare/tensorflow_resnet_b64"}}
     )
     
     volumes = kwargs.pop("volumes")
 
     if not kwargs.get("volume_mounts"):
         kwargs["volume_mounts"] = []
-    kwargs["volume_mounts"].append({"name": config_volume_name, "mount_path": "/etc/tfserving"})
+    kwargs["volume_mounts"].append({"name": config_volume_name, "mount_path": volume_mount_path})
     kwargs["volume_mounts"].append({"name": models_volume_name, "mount_path": "/models/resnet"})
 
     create_configmap(

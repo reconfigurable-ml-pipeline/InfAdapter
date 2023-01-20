@@ -38,43 +38,8 @@ kubectl edit cm tfserving-resnet-cm
 
 
 ### Steps build nfs server
-1. `sudo apt update`
-2. `sudo apt install nfs-kernel-server`
-3. `sudo mkdir -p /fileshare`
-4. `sudo chmod 777 /fileshare`
-5. ```shell
-    sudo -s
-    echo "/fileshare *(rw,no_subtree_check,no_root_squash)" >> /etc/exports
-    exit
-    ```
-6. `sudo exportfs -a`
-7. `sudo systemctl restart nfs-kernel-server`
-8. `sudo ufw allow 2049`
+> Follow the steps at [build_nfs_server](./build_nfs_server.md)
 
 
 ### Add models to nfs server to be used in Pods
-
-1. Install tensorflow
-    ```shell
-    pip install tensorflow==2.9.1
-    pip install tensorflow_probability==0.17.0
-    ```
-
-2. Install pytorch
-    ```shell
-    pip install torch==1.10.1
-    pip install torchvision==0.11.2
-    ```
-
-3. Convert Pytorch pretrained resnet models to Tensorflow saved model
-    ```shell
-    python torch_to_tf.py
-    ```
-
-4. Add preprocessing to the generated Tensorflow models to allow them accept base64 image as input
-    ```shell
-    mkdir tensorflow_b64
-    python tensorflow_b64.py
-    ```
-5. mkdir -p /fileshare/tensorflow_resnet_b64
-6. cp -r tensorflow_b64/* /fileshare/tensorflow_resnet_b64
+> Follow the steps at [build_model](./build_models.md)

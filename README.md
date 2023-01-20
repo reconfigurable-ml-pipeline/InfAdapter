@@ -1,32 +1,30 @@
-*a Mechanism for Auto-Configuration of ML Inference Services*
+*InfAdapter: An Adaptation Mechanism for ML Inference Services*
 -
 
->### Benchmark ML inference service performance metrics (like latency and throughput) under Reconfiguration options
+<img src="InfAdapter.png" alt="InfAdapter Structure" style="width:600px;"/>
 
-## Simulation entities
+## Instructions
+X. Create a Kubernetes cluster
 
-- ### RequestGenerator:
-    - This entity has the responsibility of generating loads from real  world logs and send them to LoadBalancer entity
-  
-- ### LoadBalancer:
-    - Receive requests from LoadGenerator and balances them across cluster workers.
-    - Every PERIOD, sends application metrics (response time) to Monitoring entity.
-    - It also forks a QueueProcess having access to request queue.
-  
-- ### QueueProcess:
-    - Has access to request queue of LoadBalancer. Its responsibility is to receive request responses returned by pods, 
-  and send a request in the queue to pods if exists any.
-  
-- ### Monitoring:
-    - Receives application metrics from LoadBalancer
-    - Collects cluster metrics (cpu utilization) through kubernetes api
+X. Set up Prometheus monitoring inside the cluster
 
-- ### Recommender:
-    - Each RECOMMENDATION_PERIOD, queries Monitoring to receive application and cluster metrics.
-    - Using values received from Monitoring, Recommends new replica count for the application through kubernetes api.
+X. Create a namespace called mehran: `kubectl create ns mehran`
 
-## Notes
- - ### [simpy](https://simpy.readthedocs.io/en/latest/) is used to simulate whole process.
- - ### kubernetes cluster is implemented as a [gym](https://github.com/openai/gym) environment.
----
-###### Master Thesis Project - computer engineering department of IUST - 2021 summer
+X. Build resnet models for TensorFlow Serving: instructions at [here](./examples/torch-resnet-kserve/example6/build_models.md)
+
+X. Configure NFS server to keep and serve our models:
+insructions at [here](./examples/torch-resnet-kserve/example6/build_nfs_server.md)
+
+X. Export NFS server IP: at your terminal, run:  `export NFS_SERVER=NFS_SERVER_IP` replacing the node's IP address with NFS_SERVER_IP
+
+X. Export a cluster node's IP: `export CLUSTER_NODE_IP=NODE_IP`
+
+
+    ...
+
+
+## Technology Stack
+- Python
+- Kubernetes
+- TensorFlow Serving
+- Prometheus

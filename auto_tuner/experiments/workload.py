@@ -10,9 +10,11 @@ from auto_tuner import AUTO_TUNER_DIRECTORY
 with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as f:
     workload_pattern = f.read()
 
-length = 5 * 60
+day = 60 * 60 * 24
+# length = 5 * 60
 workload_pattern = list(map(int, workload_pattern.split()))
-workload_pattern = workload_pattern[18*length:19*length]
+# workload_pattern = workload_pattern[18*length:19*length]
+workload_pattern = workload_pattern[15 * day + 90 * 60 : 15 * day + 100 * 60]
 
 workload_pattern = np.array(workload_pattern)
 
