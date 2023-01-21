@@ -77,14 +77,10 @@ async def reset(request):
 
 
 async def export_request_count(request):
-    content = "<!DOCTYPE html>"
-    content += "<html>\n<head><title>Dispatcher exporter</title></head>\n<body>\n"
-    content += '<pre style="word-wrap: break-word; white-space: pre-wrap;">\n'
-    content += "# HELP dispatcher_requests_total Total number of requests labeled by model used for inference.  \n"
-    content += "# TYPE dispatcher_requests_total counter"
+    content = "# HELP dispatcher_requests_total Total number of requests labeled by model used for inference.\n"
+    content += "# TYPE dispatcher_requests_total counter\n"
     for model, counter in dispatcher.total_requests.items():
-        content += f'dispatcher_requests_total{{model="{model}"}} {counter} \n'
-    content += "</pre>\n</body>\n</html>"
+        content += f'dispatcher_requests_total{{model="{model}"}} {counter}\n'
     return web.Response(body=content)
 
 

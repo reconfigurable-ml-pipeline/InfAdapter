@@ -241,16 +241,12 @@ async def initialize(request):
 
 
 async def export_request_count(request):
-    content = "<!DOCTYPE html>"
-    content += "<html>\n<head><title>Dispatcher exporter</title></head>\n<body>\n"
-    content += '<pre style="word-wrap: break-word; white-space: pre-wrap;">\n'
-    content += "# HELP infadapter_accuracy Weighted average of models used.\n"
+    content = "# HELP infadapter_accuracy Weighted average of models used.\n"
     content += "# TYPE infadapter_accuracy gauge\n"
     content += f'infadapter_accuracy {adapter.get_current_accuracy()}\n'
-    content += "# Help infadapter_cost Number of cpu cores used by the models.\n"
-    content += "# Type infadapter_cost gauge\n"
+    content += "# HELP infadapter_cost Number of cpu cores used by the models.\n"
+    content += "# TYPE infadapter_cost gauge\n"
     content += f"infadapter_cost {adapter.get_current_cost()}\n"
-    content += "</pre>\n</body>\n</html>"
     return web.Response(body=content)
 
 
