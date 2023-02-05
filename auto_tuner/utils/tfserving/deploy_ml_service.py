@@ -13,15 +13,18 @@ def deploy_ml_service(
         replicas: int, 
         active_model_version: int, 
         selector: dict, 
-        namespace="default", 
+        namespace="default",
+        mount_all_models=False,
         **kwargs
 ):
+    model_name = "resnet"
     volume_mount_path = "/etc/tfserving"
     configmap_name = f"{service_name}-cm"
     config_volume_name = f"{service_name}-config-vol"
     models_volume_name = f"{service_name}-models-vol"
     
     kwargs.setdefault("name", f"{service_name}-container")
+    kwargs.setdefault("image", "mehransi/main:tfserving_with_warmup")
 
     max_batch_size = kwargs.pop("max_batch_size", None)
     max_batch_latency = kwargs.pop("max_batch_latency", None)
@@ -37,8 +40,11 @@ def deploy_ml_service(
     if max_batch_size is not None and max_batch_size > 1:
         enable_batching = True
     
-    # if not kwargs.get("env_vars"):
-    #     kwargs["env_vars"] = {}
+    if not kwargs.get("env_vars"):
+        kwargs["env_vars"] = {}
+    kwargs["env_vars"]["MODEL_NAME"] = model_name
+    # kwargs["env_vars"]["WARMUP_COUNT"] = 1
+    # kwargs["env_vars"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
     # kwargs["env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
 
     if not kwargs.get("args"):
@@ -62,22 +68,42 @@ def deploy_ml_service(
     kwargs["volumes"].append(
         {"name": config_volume_name, "config_map": {"name": configmap_name}}
     )
+    warmup_volume_name = "warmup-vol"
     kwargs["volumes"].append(
-        {"name": models_volume_name, "nfs": {"server": os.getenv("NFS_SERVER"), "path": "/fileshare/tensorflow_resnet_b64"}}
+        {"name": warmup_volume_name, "empty_dir": "{}"}
+    )
+    
+    model_nfs_path = "/fileshare/tensorflow_resnet_b64"
+    if mount_all_models is False:
+        model_nfs_path += f"/{active_model_version}"
+    kwargs["volumes"].append(
+        {
+            "name": models_volume_name, 
+            "nfs": {
+                "server": os.getenv("NFS_SERVER"),
+                "path": model_nfs_path
+            }
+        }
     )
     
     volumes = kwargs.pop("volumes")
 
     if not kwargs.get("volume_mounts"):
         kwargs["volume_mounts"] = []
+    mount_model_to = "/models/resnet"
+    if mount_all_models is False:
+        mount_model_to += f"/{active_model_version}"
     kwargs["volume_mounts"].append({"name": config_volume_name, "mount_path": volume_mount_path})
-    kwargs["volume_mounts"].append({"name": models_volume_name, "mount_path": "/models/resnet"})
+    kwargs["volume_mounts"].append({"name": models_volume_name, "mount_path": mount_model_to})
+    kwargs["volume_mounts"].append({"name": warmup_volume_name, "mount_path": "/warmup"})
 
     create_configmap(
         configmap_name,
         namespace=namespace,
         data={
-            "models.config": get_serving_configuration("resnet", "/models/resnet/", "tensorflow", active_model_version),
+            "models.config": get_serving_configuration(
+                model_name, f"/models/{model_name}/", "tensorflow", active_model_version
+            ),
             "monitoring.config": """
                 prometheus_config {
                   enable: true,
@@ -92,9 +118,22 @@ def deploy_ml_service(
             )
         }
     )
+    kwargs.update(readiness_probe={"exec": ["cat", "/warmup/done"], "period_seconds": 1})
     create_deployment(
         service_name, 
-        containers=[kwargs], 
+        containers=[
+            kwargs,
+            {
+                "name": "warmup",
+                "image": "mehransi/main:warmup_for_tfserving",
+                "env_vars": {
+                    "WARMUP_COUNT": "3", "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python", "PYTHONUNBUFFERED": "1"
+                },
+                "request_cpu": "128m",
+                "request_mem": "128Mi",
+                "volume_mounts": [{"name": warmup_volume_name, "mount_path": "/warmup"}]
+            }
+        ], 
         replicas=replicas, 
         namespace=namespace, 
         labels=labels, 
@@ -116,11 +155,3 @@ def deploy_ml_service(
         expose_type="NodePort",
         selector=selector
     )
-    # create_kubernetes_service(
-    #     f"{service_name}-batch",
-    #     target_port=9081,
-    #     port=9081,
-    #     namespace=namespace,
-    #     expose_type="NodePort",
-    #     selector=selector
-    # )

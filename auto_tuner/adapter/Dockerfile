@@ -13,8 +13,8 @@ ENV CAPACITY_MODELS=/app/capacity_models
 RUN pip install --upgrade pip
 RUN pip install joblib==1.2.0
 RUN pip install git+ssh://git@github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git
-RUN pip install numpy==1.19.2
-RUN pip install tensorflow==2.7.0
+RUN pip install tensorflow==2.8.0
 RUN pip install aiohttp==3.7.4
+RUN pip install aioprocessing==2.0.1
 
 ENTRYPOINT ["bash", "runner.sh"]

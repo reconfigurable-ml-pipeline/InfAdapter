@@ -2,6 +2,7 @@ import time
 import os
 import csv
 from datetime import datetime
+import numpy as np
 
 from kube_resources.services import get_service
 from auto_tuner import AUTO_TUNER_DIRECTORY
@@ -12,9 +13,7 @@ from auto_tuner.experiments.utils import (
     delete_previous_deployment,
 )
 from auto_tuner.utils.prometheus import PrometheusClient
-
 from auto_tuner.utils.tfserving.model_switching import request_pod_to_switch_model_version
-
 
 
 namespace = "mehran"
@@ -35,7 +34,7 @@ def start_service(hardware, cpu):
         ParamTypes.REPLICA: 1,
         ParamTypes.HARDWARE: hardware,
         ParamTypes.CPU: cpu,
-        ParamTypes.MEMORY: "2G",
+        ParamTypes.MEMORY: f"{cpu}G",
         ParamTypes.MODEL_ARCHITECTURE: 18,
         ParamTypes.BATCH: 1,
         ParamTypes.INTRA_OP_PARALLELISM: 1,
@@ -44,7 +43,8 @@ def start_service(hardware, cpu):
     apply_config(
         service_name,
         namespace,
-        config
+        config,
+        mount_all_models=True
     )
     time.sleep(5)
     wait_till_pods_are_ready(service_name, namespace)
@@ -60,24 +60,25 @@ def start_experiment(hardware, cpu, ip, prom):
     start_service(hardware, cpu)
     
     port = get_service(f"tfserving-resnet-grpc", "mehran")["node_port"]
-    repeat = 5
+    repeat = 50
     output = {}
     for _ in range(repeat):
-        for arch in [18, 34, 50, 101, 152]:
+        for arch in reversed([18, 34, 50, 101, 152]):
             r = request_pod_to_switch_model_version(f"{ip}:{port}", arch)
-            
             time.sleep(10)
             load_latency = prom.get_instant(
-                f':tensorflow:cc:saved_model:load_latency{{container="{service_name}", model_path="/models/resnet/{arch}"}}'
+                f':tensorflow:cc:saved_model:load_latency{{container="{service_name}-container", model_path="/models/resnet/{arch}"}}'
             )
             load_latency = _get_value(load_latency, divide_by=1000)
             load_latency = load_latency - sum(output.get(arch, []))
-            # print(f"load_latency for model {arch} with cpu={cpu} is: {load_latency}")
             output[arch] = output.get(arch, []) + [load_latency]
     
-    print(f"output for cpu={cpu}", output)
     for k in output:
-        output[k] = max(output[k])
+        output[k] = {
+            "min": round(min(output[k]), 2),
+            "p95": round(np.percentile(output[k], 95), 2),
+            "max": round(max(output[k]), 2)
+        }
     
     delete_service()
     time.sleep(15)
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     ip = "192.5.86.160"
     prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
     prom = PrometheusClient(ip, prom_port)
-    for cpu in range(1, 5):
+    for cpu in [2]:
         hardware = "cpu"
         models_load_latency = start_experiment(hardware, cpu, ip, prom)
         
@@ -102,7 +103,9 @@ if __name__ == "__main__":
             field_names = [
                 "ARCH",
                 "CPU",
-                "load_latency",
+                "min",
+                "p95",
+                "max",
                 "timestamp"
             ]
             writer = csv.DictWriter(csvfile, fieldnames=field_names)
@@ -113,7 +116,7 @@ if __name__ == "__main__":
                     {
                         "ARCH": model,
                         "CPU": cpu,
-                        "load_latency": load_latency,
+                        **load_latency,
                         "timestamp": datetime.now().isoformat()
                     }
                 )

@@ -22,7 +22,13 @@ def is_config_valid(c: dict) -> bool:
     return True
 
 
-def apply_config(service_name: str, namespace: str, config: dict, hardware = ParamTypes.HARDWARE_CPU):
+def apply_config(
+    service_name: str,
+    namespace: str,
+    config: dict,
+    hardware = ParamTypes.HARDWARE_CPU,
+    mount_all_models=False,
+):
     if hardware == ParamTypes.HARDWARE_CPU:
         image = "tensorflow/serving:2.8.0"
     else:
@@ -45,8 +51,11 @@ def apply_config(service_name: str, namespace: str, config: dict, hardware = Par
         max_enqueued_batches=config.get(ParamTypes.MAX_ENQUEUED_BATCHES),
         args=[
             f"--tensorflow_intra_op_parallelism={config.get(ParamTypes.INTRA_OP_PARALLELISM)}",
-            f"--tensorflow_inter_op_parallelism={config.get(ParamTypes.INTER_OP_PARALLELISM)}"
-        ]
+            f"--tensorflow_inter_op_parallelism={config.get(ParamTypes.INTER_OP_PARALLELISM)}",
+            # f"--num_load_threads={config.get(ParamTypes.CPU)}",
+            # f"--num_unload_threads={config.get(ParamTypes.CPU)}"  # Did not have effect
+        ],
+        mount_all_models=mount_all_models,
     )
 
 

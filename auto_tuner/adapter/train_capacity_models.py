@@ -19,7 +19,7 @@ for version in versions:
 
     model = LinearRegression()
     model.fit(X_train, Y_train)
-    dump(model, f"{AUTO_TUNER_DIRECTORY}/adapter/capacity_models/resnet{version}.joblib")
+    dump(model, f"{AUTO_TUNER_DIRECTORY}/adapter/capacity_models/resnet-{version}.joblib")
     models[version] = model
 
 for version in versions:
