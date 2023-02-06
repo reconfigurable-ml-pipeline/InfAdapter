@@ -7,30 +7,28 @@ def read():
 
 
 setup(
-    name="auto_tuner",
+    name="infadapter",
     version="0.0.1",
     keywords=["ML Inference", "ML Service", "Autoscaling", "Auto-Configuration", "Kubernetes", "Cloud Computing"],
     packages=find_packages("."),
     long_description=read(),
     install_requires=[
-        "gym==0.24.0",
-        "ray[rllib]==1.9.0",
-        "ray[serve]==1.9.0",
-        "aioredis==1.3.1",
-        "simpy==4.0.1",
-        "matplotlib==3.5.2",
-        "PyQt5==5.15.4",
-        "tensorflow==2.7.0",
-        "tensorflow-serving-api==2.7.0",
-        "grpcio==1.39.0",
-        "protobuf==3.20.0",
-        "numpy==1.19.2",
-        "pillow==8.3.2",
-        "locust==2.9.0",
-        "redis==3.5.3",
-        "opencv-python==4.6.0.66",
-        "kubernetes-python-client @ git+ssh://git@github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git",
-        "barazmoon @ git+ssh://git@github.com/reconfigurable-ml-pipeline/load_tester.git@mehran"
+        "wheel==0.38.4",
+        "matplotlib==3.6.3",
+        "numpy==1.23.4",
+        "tensorflow==2.11.0",
+        "tensorflow-serving-api==2.11.0",
+        "grpcio==1.43.0",
+        "pandas==1.5.3",
+        "scikit-learn==1.2.0",
+        "scipy==1.10.0",
+        "kubernetes-python-client @ git+https://github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git",
+        "barazmoon @ git+ssh://git@github.com/reconfigurable-ml-pipeline/load_tester.git@mehran"  # Todo: http link
     ],
-
+    extras_require={
+        "dev": [
+            "pillow==9.4.0",
+            "opencv-python==4.6.0.66"
+        ]
+    }
 )

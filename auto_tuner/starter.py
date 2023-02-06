@@ -77,7 +77,8 @@ class Starter:
             "PREDICTION_ERROR_PERCENTAGE": 10,
             "WARMUP_COUNT": 3,
             "FIRST_DECIDE_DELAY_MINUTES": 4,
-            "SOLVER_TYPE": solver_type
+            "SOLVER_TYPE": solver_type,
+            "STABILIZATION_INTERVAL": 3,
         }
 
     
@@ -154,7 +155,7 @@ class Starter:
             namespace=self.namespace
         )
         
-    def deploy_adapter(self, dispatcher_endpoint, prometheus_endpoint):
+    def deploy_adapter(self):
         labels = {"project": "infadapter", "module": "adapter"}
         create_deployment(
             self.get_service_name("adapter"),
