@@ -21,7 +21,6 @@ setup(
         "grpcio==1.43.0",
         "pandas==1.5.3",
         "scikit-learn==1.2.0",
-        "scipy==1.10.0",
         "kubernetes-python-client @ git+https://github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git",
         "barazmoon @ git+ssh://git@github.com/reconfigurable-ml-pipeline/load_tester.git@mehran"  # Todo: http link
     ],

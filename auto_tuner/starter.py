@@ -216,7 +216,7 @@ class Starter:
         # time.sleep(1)
         # os.popen(f"python {AUTO_TUNER_DIRECTORY}/adapter/main.py")
         
-        # time.sleep(10)
+        time.sleep(10)
         response = requests.post(
             f"http://{self.node_ip}:{adapter_k8s_service['node_port']}/initialize",
             json={

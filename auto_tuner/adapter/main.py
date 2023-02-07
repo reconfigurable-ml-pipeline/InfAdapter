@@ -74,6 +74,8 @@ class Adapter:
         
         
     def get_current_accuracy(self):
+        if not self.is_initialized():
+            return ''
         acc = 0
         for mc in self.__current_config:
             model_name, _, quota = mc
@@ -81,6 +83,8 @@ class Adapter:
         return f"{acc:.2f}"
     
     def get_current_cost(self):
+        if not self.is_initialized():
+            return ''
         total_size = 0
         for mc in self.__current_config:
             _, size, _ = mc
@@ -102,7 +106,7 @@ class Adapter:
         self.__dispatcher_session = ClientSession()
         self.__prometheus_session = ClientSession()
         self.__lstm = load_model(os.environ["LSTM_MODEL"])
-        self.__current_config = data["models_config"]
+        current_config = data["models_config"]
         
         reconfiguration = Reconfiguration(
             **dict(
@@ -119,7 +123,7 @@ class Adapter:
         total_rate = 0
         quotas = {f"{self.__base_model_name}-{v}": 0 for v in self.__model_versions}
         tasks = []
-        for tup in sorted(self.__current_config, key=lambda x: x[0], reverse=True):
+        for tup in sorted(current_config, key=lambda x: x[0], reverse=True):
             m, c = tup
             asyncio.create_task(self.create_ml_service(m, c, self.__versioning[m]))
             tasks.append(asyncio.create_task(self.check_readiness(m, self.__versioning[m])))
@@ -330,7 +334,7 @@ class Adapter:
         for model in current_config_dict.keys():
             if not next_config_dict.get(model):
                 deletes.append((model, self.__versioning[model]))
-        
+        tt = time.perf_counter() - t
         tasks = []
         for create in creates:
             model, size, deploy_version = create
@@ -356,7 +360,7 @@ class Adapter:
             tasks.append(asyncio.create_task(self.delete_ml_service(model, deploy_version)))
         await asyncio.gather(*tasks)
         self.__current_config = next_config
-        self.logger.info(f"The whole decision making process took {time.perf_counter() - t}s")
+        self.logger.info(f"The whole decision making process took {tt}s. Transition included: {time.perf_counter() - t}s")
         return {"success": True, "message": "reconfigured"}
 
 
@@ -401,4 +405,4 @@ app.add_routes(
     ]
 )
 if __name__ == '__main__':
-    web.run_app(app, host="0.0.0.0", port=8000)
+    web.run_app(app, host="0.0.0.0", port=8000, access_log=None)

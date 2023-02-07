@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from barazmoon import BarAzmoon
@@ -61,7 +62,9 @@ def generate_workload(url):
     plt.xlabel("time (seconds)")
     plt.plot(range(1, len(workload_pattern) + 1), workload_pattern, label="request count")
     plt.legend()
-    plt.savefig(f"{AUTO_TUNER_DIRECTORY}/../results/workload.png", format="png")
+    results_dir = f"{AUTO_TUNER_DIRECTORY}/../results"
+    os.system(f"mkdir -p {results_dir}")
+    plt.savefig(f"{results_dir}/workload.png", format="png")
     plt.close()
     print("total number of requests being sent", sum(workload_pattern))
     counter, total_seconds = WorkloadGenerator(workload=workload_pattern, endpoint=url, http_method="post").start()
