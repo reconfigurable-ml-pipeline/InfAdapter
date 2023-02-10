@@ -47,16 +47,16 @@ class Starter:
             152: .78312,
         }
         self.load_times = {
-            18: 431.77,
-            34: 724.01,
-            50: 985.45,
-            101: 1947.94,
-            152: 2851.13,
+            18: 6.44,
+            34: 6.79,
+            50: 6.82,
+            101: 7.77,
+            152: 8.52,
         }
         self.node_ip = os.getenv("CLUSTER_NODE_IP")
         self.max_cpu = 20
         self.alpha = 0.04
-        self.beta = 0.01
+        self.beta = 0.02
         self.env_vars = {
             "BASE_MODEL_NAME": self.base_model_name,
             "BASE_SERVICE_NAME": self.base_service_name,
@@ -74,11 +74,12 @@ class Starter:
             "ALPHA": str(self.alpha),
             "BETA": str(self.beta),
             "MAX_CPU": str(self.max_cpu),
-            "PREDICTION_ERROR_PERCENTAGE": 10,
+            "PREDICTION_ERROR_PERCENTAGE": 15,
             "WARMUP_COUNT": 3,
             "FIRST_DECIDE_DELAY_MINUTES": 4,
             "SOLVER_TYPE": solver_type,
             "STABILIZATION_INTERVAL": 3,
+            "DECISION_INTERVAL": 60,
         }
 
     

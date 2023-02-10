@@ -303,15 +303,14 @@ class Adapter:
                 return {"success": True, "message": "stabilized"}
         
         self.__stabilization_counter = 0
-        self.__current_load = next_m_rps
         
-        await self.__solver_receive_queue.coro_put({"lambda": self.__current_load, "state": self.__current_config})
+        await self.__solver_receive_queue.coro_put({"lambda": next_m_rps, "state": self.__current_config})
         next_config = await self.__solver_send_queue.coro_get()
         
         # No config can handle this load with our max_cpu
         if next_config is None:
             next_config = [(self.__model_versions[0], self.__max_cpu, 1)]
-        next_config = list(map(lambda x:(x[0], x[1], x[2] * self.__current_load), next_config))
+        next_config = list(map(lambda x:(x[0], x[1], x[2] * next_m_rps), next_config))
         
         self.logger.info(f"adapter next_config {str(next_config)}")
         next_config_dict = self.convert_config_to_dict(next_config)
@@ -342,6 +341,11 @@ class Adapter:
             tasks.append(asyncio.create_task(self.check_readiness(model, deploy_version)))
         
         await asyncio.gather(*tasks)
+        
+        tasks = []
+        for delete in deletes:
+            model, deploy_version = delete
+            tasks.append(asyncio.create_task(self.delete_ml_service(model, deploy_version)))
                 
         # Send new quotas to the dispatcher
         quotas = {f"{self.__base_model_name}-{v}": 0 for v in self.__model_versions}
@@ -354,11 +358,8 @@ class Adapter:
         ) as response:
             response = await response.text()
 
-        tasks = []
-        for delete in deletes:
-            model, deploy_version = delete
-            tasks.append(asyncio.create_task(self.delete_ml_service(model, deploy_version)))
         await asyncio.gather(*tasks)
+        self.__current_load = next_m_rps
         self.__current_config = next_config
         self.logger.info(f"The whole decision making process took {tt}s. Transition included: {time.perf_counter() - t}s")
         return {"success": True, "message": "reconfigured"}
