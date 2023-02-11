@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Input, LSTM, Dense
+from tensorflow.keras import regularizers
 
 
 from auto_tuner import AUTO_TUNER_DIRECTORY
@@ -45,7 +46,7 @@ def get_data():
 def create_model():
     model = Sequential()
     model.add(Input(shape=(10, 1)))
-    model.add(LSTM(50, activation="relu"))
+    model.add(LSTM(25, activation="relu", kernel_regularizer=regularizers.L1(0.00001)))
     model.add(Dense(1))
     return model
 
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     model = create_model()
     print(model.summary())
     model.compile(optimizer="adam", loss="mse")
-    model.fit(train_x, train_y, epochs=20, batch_size=64, validation_data=(test_x, test_y))
+    model.fit(train_x, train_y, epochs=30, batch_size=64, validation_data=(test_x, test_y))
     predictions = model.predict(test_x)
     
     plt.plot(list(range(len(test_y))), list(test_y), label="real values")

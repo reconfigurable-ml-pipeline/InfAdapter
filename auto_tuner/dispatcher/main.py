@@ -2,9 +2,6 @@ import os
 from aiohttp import ClientSession, web
 
 
-app = web.Application()
-
-
 class Dispatcher:
     def __init__(self) -> None:
         self.model_names = []
@@ -25,10 +22,12 @@ class Dispatcher:
             self.sessions[model_name] = ClientSession()
             self.total_requests[model_name] = 0
     
+    
     def reset(self, data: dict):
         self.quotas: dict = data["quotas"]
         self.r = 1
         self.idx = 0
+    
     
     async def dispatch(self, data):
         endpoint = None
@@ -84,6 +83,7 @@ async def export_request_count(request):
     return web.Response(body=content)
 
 
+app = web.Application()
 app.add_routes(
     [
         web.post("/initialize", initialize),
@@ -93,4 +93,4 @@ app.add_routes(
     ]
 )
 if __name__ == '__main__':
-    web.run_app(app, host="0.0.0.0", port=8000)
+    web.run_app(app, host="0.0.0.0", port=8000, access_log=None)
