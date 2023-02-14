@@ -86,7 +86,7 @@ async def find_saturation_throughput(prom, url, count):
     conn = TCPConnector(limit=0)
     async with ClientSession(connector=conn) as session:
         start_time = time.perf_counter()
-        while current_time < 1.5:
+        while current_time < 2:
             task = asyncio.create_task(predict(session, url, data))
             tasks.append(task)
             next_time = np.random.exponential(1/count)
@@ -102,13 +102,13 @@ async def find_saturation_throughput(prom, url, count):
     return _get_value(rate)
 
 
-async def find_p99_latency(prom, url, rps):
+async def find_p99_latency(prom: PrometheusClient, url, rps):
     tasks = []
     current_time = 0
     data = images[0]
     conn = TCPConnector(limit=0)
     async with ClientSession(connector=conn) as session:
-        start_time = time.perf_counter()
+        start_time = datetime.now().timestamp()
         while current_time < 30:  # generate rps load based on exponential distribution for 30 seconds
             task = asyncio.create_task(predict(session, url, data))
             tasks.append(task)
@@ -118,13 +118,16 @@ async def find_p99_latency(prom, url, rps):
 
         await asyncio.gather(*tasks)
 
-    duration = time.perf_counter() - start_time
-    duration_int = int(duration)
-    percentile_99 = prom.get_instant(
-        f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501"}}[{duration_int}s])) by (le))'
+    end_time = datetime.now().timestamp()
+    percentiles_99 = prom.get_range(
+        f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501"}}[2s])) by (le))',
+        start_time=start_time,
+        end_time=end_time,
+        step=2
     )
+    percentiles_99 = list(map(lambda x: (float(x[1]) / 1000) if x[1] != "NaN" else -1, percentiles_99))
     
-    return _get_value(percentile_99, divide_by=1000)
+    return round(max(percentiles_99), 2)
     
 
 rate_cache = {}
@@ -138,7 +141,7 @@ def find_capacity(url, sla_ms, config, prom):
     
     if rate_cache.get(str(config)) is None:
         rps_list = []
-        for repeat in range(5):
+        for repeat in range(9):
             rps_list.append(
                 asyncio.run(
                     find_saturation_throughput(
@@ -155,9 +158,12 @@ def find_capacity(url, sla_ms, config, prom):
     
     time.sleep(5)
     peak_rate = rate_cache[str(config)]
-    lo, hi = max(int(peak_rate) - 15, 0), round(peak_rate) + 7
+    
     if peak_rate > 100:
-        hi += 50 * (peak_rate // 100)
+        hi = round(1.2 * peak_rate)
+    else:
+        hi = peak_rate
+    lo = max(int(0.5 * peak_rate), 0)
         
     p99 = None
     
@@ -207,6 +213,13 @@ def delete_service():
 
 
 if __name__ == "__main__":
+    memory_sizes = {
+        18: "1G",
+        34: "1.25G",
+        50: "1.5G",
+        101: "2G",
+        152: "2.25G"
+    }
     for hw in ["cpu"]:
         if hw == "cpu":
             ip = "192.5.86.160"
@@ -215,48 +228,48 @@ if __name__ == "__main__":
         prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
         prom = PrometheusClient(ip, prom_port)
         for replicas in [1]:
-            for cpu in range(1, 5):
-                for mem in [f"{2*cpu}G"]:
-                    for arch in [18, 34, 50, 101, 152]:
-                        for batch in [1]:
-                            for nbt in [cpu]:
-                                for meb in [1000000]:
-                                    for par_tp in set([(cpu, 1)]):
-                                        inter_op, intra_op = par_tp
-                                        config = start_service(replicas, hw, cpu, mem, arch, batch, nbt, meb, intra_op, inter_op)
-                                        port = get_service(f"tfserving-resnet-rest", "mehran")["node_port"]
-                                        url = f"http://{ip}:{port}/v1/models/resnet:predict"
-                                        warmup(url)
-                                        time.sleep(2)
-                                        for sla in [750]:
-                                            p99, capacity, saturation_tp = find_capacity(url, sla, config, prom)
-                                            filepath = f'{AUTO_TUNER_DIRECTORY}/../results/capacity_result.csv'
-                                            file_exists = os.path.exists(filepath)
-                                            with open(
-                                                filepath, 'a', newline=''
-                                            ) as csvfile:
-                                                field_names = [
-                                                    *list(config.keys()),
-                                                    "SLA",
-                                                    "p99_latency",
-                                                    "capacity",
-                                                    "saturation_tp",
-                                                    "timestamp"
-                                                ]
-                                                writer = csv.DictWriter(csvfile, fieldnames=field_names)
-                                                if not file_exists:
-                                                    writer.writeheader()
-                                                
-                                                writer.writerow(
-                                                    {
-                                                        **config,
-                                                        "SLA": sla,
-                                                        "p99_latency": p99,
-                                                        "capacity": capacity,
-                                                        "saturation_tp": saturation_tp,
-                                                        "timestamp": datetime.now().isoformat()
-                                                    }
-                                                )
-                                                time.sleep(5)
-                                        delete_service()
-                                        time.sleep(10)
+            for cpu in range(1, 21):
+                for arch in [18, 34, 50, 101, 152]:
+                    mem = memory_sizes[arch]
+                    for batch in [1]:
+                        for nbt in [cpu]:
+                            for meb in [1000000]:
+                                for par_tp in set([(cpu, 1)]):
+                                    inter_op, intra_op = par_tp
+                                    config = start_service(replicas, hw, cpu, mem, arch, batch, nbt, meb, intra_op, inter_op)
+                                    port = get_service(f"{service_name}-rest", "mehran")["node_port"]
+                                    url = f"http://{ip}:{port}/v1/models/resnet:predict"
+                                    # warmup(url)
+                                    # time.sleep(2)
+                                    for sla in [750]:
+                                        p99, capacity, saturation_tp = find_capacity(url, sla, config, prom)
+                                        filepath = f'{AUTO_TUNER_DIRECTORY}/../results/capacity_result.csv'
+                                        file_exists = os.path.exists(filepath)
+                                        with open(
+                                            filepath, 'a', newline=''
+                                        ) as csvfile:
+                                            field_names = [
+                                                *list(config.keys()),
+                                                "SLA",
+                                                "p99_latency",
+                                                "capacity",
+                                                "saturation_tp",
+                                                "timestamp"
+                                            ]
+                                            writer = csv.DictWriter(csvfile, fieldnames=field_names)
+                                            if not file_exists:
+                                                writer.writeheader()
+                                            
+                                            writer.writerow(
+                                                {
+                                                    **config,
+                                                    "SLA": sla,
+                                                    "p99_latency": p99,
+                                                    "capacity": capacity,
+                                                    "saturation_tp": saturation_tp,
+                                                    "timestamp": datetime.now().isoformat()
+                                                }
+                                            )
+                                            time.sleep(5)
+                                    delete_service()
+                                    time.sleep(10)

@@ -54,10 +54,10 @@ class Starter:
         }
         self.memory_sizes = {
             18: "1G",
-            34: "1.5G",
-            50: "1.75G",
+            34: "1.25G",
+            50: "1.5G",
             101: "2G",
-            152: "2.5G"
+            152: "2.25G"
         }
         self.node_ip = os.getenv("CLUSTER_NODE_IP")
         self.max_cpu = 20
