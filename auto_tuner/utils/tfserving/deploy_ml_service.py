@@ -43,8 +43,6 @@ def deploy_ml_service(
     if not kwargs.get("env_vars"):
         kwargs["env_vars"] = {}
     kwargs["env_vars"]["MODEL_NAME"] = model_name
-    # kwargs["env_vars"]["WARMUP_COUNT"] = 1
-    # kwargs["env_vars"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
     # kwargs["env_vars"]["TF_CPP_VMODULE"] = "http_server=1"
 
     if not kwargs.get("args"):

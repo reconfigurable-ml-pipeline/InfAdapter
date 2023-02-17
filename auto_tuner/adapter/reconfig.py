@@ -27,7 +27,7 @@ class Reconfiguration:
         if cpu == 0:
             return 0
         X = np.array([cpu]).reshape(-1, 1)
-        return int(0.9 * self.__capacity_models[model_version].predict(X))
+        return int(0.8 * self.__capacity_models[model_version].predict(X))
     
     def find_all_valid_options(self, max_cpu, rate, models=None, option=None, options=None):
         if models is None:

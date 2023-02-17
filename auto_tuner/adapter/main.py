@@ -87,7 +87,7 @@ class Adapter:
         for mc in self.__current_config:
             model_name, _, quota = mc
             acc += self.__baseline_accuracies[model_name] * (quota / self.__current_load)
-        return f"{acc:.2f}"
+        return f"{acc:.4f}"
     
     def get_current_cost(self):
         if not self.is_initialized():
@@ -317,6 +317,7 @@ class Adapter:
         kwargs["args"] = [
             f"--tensorflow_intra_op_parallelism=1",
             f"--tensorflow_inter_op_parallelism={size}",
+            f"--rest_api_num_threads={15 * size}",
             f"--model_config_file={volume_mount_path}/models.config",
             f"--monitoring_config_file={volume_mount_path}/monitoring.config",
             "--enable_batching=false",
