@@ -11,9 +11,10 @@ import tensorflow as tf
 import pandas as pd
 from aiohttp import ClientSession, web
 from tensorflow.keras.models import load_model
-from kube_resources.deployments import create_deployment, delete_deployment, get_deployment
+from kube_resources.deployments import create_deployment, delete_deployment, get_deployment, update_deployment
 from kube_resources.services import create_service as create_kubernetes_service, get_service
 from kube_resources.configmaps import create_configmap
+from kube_resources.vpas import get_vpa
 from reconfig import Reconfiguration
 from aioprocessing import AioProcess, AioQueue
 
@@ -64,6 +65,8 @@ class Adapter:
                 send_queue=self.__solver_send_queue,
                 receive_queue=self.__solver_receive_queue,
                 solver_type=self.__solver_type,
+                namespace=self.__k8s_namespace,
+                base_service_name=self.__base_service_name,
                 model_versions=self.__model_versions,
                 max_cpu=self.__max_cpu,
                 capacity_models_paths=self.__capacity_models_paths,
@@ -184,8 +187,10 @@ class Adapter:
         tasks = []
         for tup in sorted(current_config, key=lambda x: x[0], reverse=True):
             m, c = tup
-            asyncio.create_task(self.create_ml_service(m, c, self.__versioning[m]))
-            tasks.append(asyncio.create_task(self.check_readiness(m, self.__versioning[m])))
+            asyncio.create_task(self.create_ml_service(m, c, self.__versioning[m] if self.__solver_type != "v" else None))
+            tasks.append(
+                asyncio.create_task(self.check_readiness(m, self.__versioning[m] if self.__solver_type != "v" else None))
+            )
             rate = reconfiguration.regression_model(m, c)
             config_with_quotas.append((m, c, rate))
             total_rate += rate
@@ -247,7 +252,7 @@ class Adapter:
     
     
     @staticmethod
-    def solver(send_queue, receive_queue, solver_type, **kwargs):
+    def solver(send_queue, receive_queue, solver_type, namespace, base_service_name, **kwargs):
         reconfiguration = Reconfiguration(**kwargs)
         while True:
             data = receive_queue.get()
@@ -255,8 +260,27 @@ class Adapter:
             current_state = data["state"]
             if solver_type == "i":
                 next_state = reconfiguration.reconfig(lmbda, current_state)
-            else:
+            elif solver_type == "m":
                 next_state = reconfiguration.reconfig_msp(lmbda, current_state)
+            else:
+                m, _, _ = current_state[0]
+                vpa = get_vpa(f"{base_service_name}-{m}-vpa", namespace)
+                rec = vpa["status"].get("recommendation")
+                next_state = current_state
+                cpu_rec = None
+                if rec:
+                    for cr in rec["containerRecommendations"]:
+                        if cr["containerName"] != "warmup":
+                            cpu_rec = cr["target"]["cpu"]
+                            try:
+                                cpu_rec = int(cpu_rec)
+                            except ValueError:
+                                cpu_rec = int(cpu_rec[:-1]) / 1000
+                                if cpu_rec != int(cpu_rec):
+                                    cpu_rec = int(cpu_rec) + 1
+                if cpu_rec:
+                    next_state = [(m, cpu_rec, 1)]
+                                             
             send_queue.put(next_state)
         
     
@@ -272,8 +296,8 @@ class Adapter:
                     {
                         "name": service_name + "-container",
                         "image": "mehransi/main:dispatcher",
-                        "limit_cpu": 1,
-                        "limit_mem": "4G",
+                        "request_cpu": 1,
+                        "limit_cpu": 2,
                         "container_ports": [8000],
                         "env_vars": {
                             "URL_PATH": "/v1/models/resnet:predict"
@@ -297,9 +321,8 @@ class Adapter:
             )
         )
         
-        
 
-    async def create_ml_service(self, model_version: int, size: int, deploy_version: int):
+    async def create_ml_service(self, model_version: int, size: int, deploy_version: int = None):
         mem = self.__memory_sizes[model_version]
         service_name = self.__base_service_name + f"-{model_version}"
         kwargs = {"name": f"{service_name}-container", "env_vars": {}}
@@ -346,12 +369,16 @@ class Adapter:
             {"name": warmup_volume_name, "mount_path": "/warmup"}
         ]
         kwargs.update(readiness_probe={"exec": ["cat", "/warmup/done"], "period_seconds": 1})
+        
+        deployment_name = service_name
+        if deploy_version is not None:
+            deployment_name = deployment_name + f"-{deploy_version}"
 
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             self.__thread_executor,
             lambda: create_deployment(
-                service_name + f"-{deploy_version}", 
+                deployment_name, 
                 containers=[
                     kwargs,
                     {
@@ -371,6 +398,52 @@ class Adapter:
                 namespace=self.__k8s_namespace, 
                 labels=labels, 
                 volumes=volumes
+            )
+        )
+    
+    async def update_ml_service(self, model_version: int, size: int):
+        mem = self.__memory_sizes[model_version]
+        service_name = self.__base_service_name + f"-{model_version}"
+        kwargs = {"name": f"{service_name}-container", "env_vars": {}}
+        kwargs["env_vars"]["MODEL_NAME"] = self.__base_model_name
+        volume_mount_path = "/etc/tfserving"
+        
+        kwargs.update({"request_cpu": size, "limit_cpu": size, "request_mem": mem, "limit_mem": mem})
+        kwargs["image"] = "tensorflow/serving:2.8.0"
+
+        kwargs["args"] = [
+            f"--tensorflow_intra_op_parallelism=1",
+            f"--tensorflow_inter_op_parallelism={size}",
+            f"--rest_api_num_threads={15 * size}",
+            f"--model_config_file={volume_mount_path}/models.config",
+            f"--monitoring_config_file={volume_mount_path}/monitoring.config",
+            "--enable_batching=false",
+        ]
+
+        kwargs.update(readiness_probe={"exec": ["cat", "/warmup/done"], "period_seconds": 1})
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            self.__thread_executor,
+            lambda: update_deployment(
+                service_name, 
+                containers=[
+                    kwargs,
+                    {
+                        "name": "warmup",
+                        "image": "mehransi/main:warmup_for_tfserving",
+                        "env_vars": {
+                            "WARMUP_COUNT": self.__warmup_count,
+                            "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python",
+                            "PYTHONUNBUFFERED": "1"
+                        },
+                        "request_cpu": "128m",
+                        "request_mem": "128Mi",
+                    }
+                ], 
+                replicas=1,
+                partial=True,
+                namespace=self.__k8s_namespace, 
             )
         )
         
@@ -451,12 +524,13 @@ class Adapter:
             self.logger.info(f"adapter LSTM next_m_rps without error considered: {next_m_rps}")
             
         next_m_rps = int((1 + percent / 100) * next_m_rps)
-        if next_m_rps <= self.__current_load:
-            if self.__stabilization_counter < self.__stabilization_interval:
-                self.__stabilization_counter += 1
-                return {"success": True, "message": "stabilized"}
         
-        self.__stabilization_counter = 0
+        if self.__solver_type != "v":
+            if next_m_rps <= self.__current_load:
+                if self.__stabilization_counter < self.__stabilization_interval:
+                    self.__stabilization_counter += 1
+                    return {"success": True, "message": "stabilized"}
+            self.__stabilization_counter = 0
         
         await self.__solver_receive_queue.coro_put({"lambda": next_m_rps, "state": self.__current_config})
         next_config = await self.__solver_send_queue.coro_get()
@@ -466,13 +540,23 @@ class Adapter:
             next_config = [(self.__model_versions[0], self.__max_cpu, 1)]
         next_config = list(map(lambda x:(x[0], x[1], round(x[2] * next_m_rps)), next_config))
         
-        self.logger.info(f"adapter next_config {str(next_config)}")
         next_config_dict = self.convert_config_to_dict(next_config)
         current_config_dict = self.convert_config_to_dict(self.__current_config)
         
+        if self.__solver_type == "v":
+            if list(next_config_dict.values())[0] <= list(current_config_dict.values())[0]:
+                if self.__stabilization_counter < self.__stabilization_interval:
+                    self.__stabilization_counter += 1
+                    return {"success": True, "message": "stabilized"}
+            self.__stabilization_counter = 0
+        
+        self.logger.info(f"adapter next_config {str(next_config)}")
+        
+        
         creates = []
         deletes = []
-    
+        updates = []
+        
         # Apply config using K8s Python client
         for model in next_config_dict.keys():
             current_size = current_config_dict.get(model)
@@ -481,9 +565,12 @@ class Adapter:
                 self.__versioning[model] += 1
                 creates.append((model, next_size, self.__versioning[model]))
             elif current_size != next_size:
-                deletes.append((model, self.__versioning[model]))
-                self.__versioning[model] += 1
-                creates.append((model, next_size, self.__versioning[model]))
+                if self.__solver_type == "v":
+                    updates.append((model, next_size))
+                else:
+                    deletes.append((model, self.__versioning[model]))
+                    self.__versioning[model] += 1
+                    creates.append((model, next_size, self.__versioning[model]))
         for model in current_config_dict.keys():
             if not next_config_dict.get(model):
                 deletes.append((model, self.__versioning[model]))
@@ -493,6 +580,9 @@ class Adapter:
             model, size, deploy_version = create
             asyncio.create_task(self.create_ml_service(model, size, deploy_version))
             tasks.append(asyncio.create_task(self.check_readiness(model, deploy_version)))
+        for update in updates:
+            model, size = update
+            asyncio.create_task(self.update_ml_service(model, size))
         
         await asyncio.gather(*tasks)
         
