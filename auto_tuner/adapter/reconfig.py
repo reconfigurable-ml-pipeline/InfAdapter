@@ -134,7 +134,7 @@ class Reconfiguration:
         for mv in self.__model_versions:
             for c in range(2, max_cpu + 1):
                 if self.regression_model(mv, c) >= lmbda:
-                    all_options.append((mv, c, 1))
+                    all_options.append([(mv, c, 1)])
                     break
         best_options = self.find_best_option(all_options, current_option)
         return best_options
