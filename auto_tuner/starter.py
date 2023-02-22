@@ -86,7 +86,7 @@ class Starter:
         self.node_ip = os.getenv("CLUSTER_NODE_IP")
         self.max_cpu = 20
         self.alpha = 0.04
-        self.beta = 0.02
+        self.beta = 0.001
         self.warmup_count = 3
         self.first_decide_delay_minutes = 2
         self.env_vars = {
@@ -106,13 +106,16 @@ class Starter:
             "ALPHA": str(self.alpha),
             "BETA": str(self.beta),
             "MAX_CPU": str(self.max_cpu),
-            "LSTM_PREDICTION_ERROR_PERCENTAGE": 15,
-            "EMW_PREDICTION_ERROR_PERCENTAGE": 15,
+            "LATENCY_SLO_MS": 750,
+            "LSTM_PREDICTION_ERROR_PERCENTAGE": 10,
+            "EMW_PREDICTION_ERROR_PERCENTAGE": 10,
             "WARMUP_COUNT": self.warmup_count,
             "FIRST_DECIDE_DELAY_MINUTES": self.first_decide_delay_minutes,
             "SOLVER_TYPE": self.solver_type,
             "STABILIZATION_INTERVAL": 6,
             "DECISION_INTERVAL": 30,
+            "VPA_TYPE": "V",
+            "CAPACITY_COEF": 0.8,
         }
 
     
@@ -153,6 +156,7 @@ class Starter:
         )
         
     def create_vpa(self, model_version):
+        time.sleep(60)
         memory = self.memory_sizes[model_version]
         service_name = self.get_service_name(model_version)
         create_vpa(
@@ -173,7 +177,6 @@ class Starter:
         if self.solver_type == SOLVER_TYPE_VPA:
             if model_version is None:
                 raise Exception("model_version must be set for VPA solver_type.")
-            self.create_vpa(model_version)
             self.env_vars["MODEL_VERSIONS"] = [model_version]
             init_config = [model_version, initial_states[model_version]]
         else:
@@ -231,7 +234,16 @@ def _get_value(prom_res, divide_by=1, should_round=True):
 
 def query_metrics(prom_port, event: Event, solver_type: str, model_version: int):
     prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), prom_port)
-    
+    time.sleep(60)
+    t = time.perf_counter()
+    if solver_type == SOLVER_TYPE_INFADAPTER:
+        filename = "infadapter"
+    elif solver_type == SOLVER_TYPE_MSP:
+        filename = "msp"
+    else:
+        filename = f"vpa-{model_version}"
+    path = f"{AUTO_TUNER_DIRECTORY}/../results/{filename}"
+    os.system(f"mkdir -p {path}")
     while True:
         if event.is_set():
             break
@@ -245,21 +257,17 @@ def query_metrics(prom_port, event: Event, solver_type: str, model_version: int)
         cost = _get_value(cost)
         accuracy = prom.get_instant(f"last_over_time(infadapter_accuracy[{GET_METRICS_INTERVAL}s])")
         accuracy = _get_value(accuracy, should_round=False)
+        rate = prom.get_instant(f"sum(rate(dispatcher_requests_total[{GET_METRICS_INTERVAL}s]))")
+        rate = _get_value(rate, should_round=False)
 
-        
-        if solver_type == SOLVER_TYPE_INFADAPTER:
-            filename = "infadapter"
-        elif solver_type == SOLVER_TYPE_MSP:
-            filename = "msp"
-        else:
-            filename = f"vpa-{model_version}"
-        filepath = f"{AUTO_TUNER_DIRECTORY}/{filename}.csv"
+        filepath = f"{path}/series.csv"
         file_exists = os.path.exists(filepath)
         with open(filepath, "a") as f:
             field_names = [
                 "p99_latency",
                 "accuracy",
                 "cost",
+                "rate",
                 "timestamp"
             ]
             writer = csv.DictWriter(f, fieldnames=field_names)
@@ -271,28 +279,56 @@ def query_metrics(prom_port, event: Event, solver_type: str, model_version: int)
                     "p99_latency": percentile_99,
                     "accuracy": accuracy,
                     "cost": cost,
+                    "rate": rate,
                     "timestamp": datetime.now().isoformat()
                 }
             )
+    
+    duration = int(time.perf_counter() - t)
+    percentile_99 = prom.get_instant(
+        f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", API="predict", entrypoint="REST"}}[{duration}s])) by (le)) / 1000'
+    )
+    percentile_99 = _get_value(percentile_99, divide_by=1000)
+
+    cost = prom.get_instant(f"avg_over_time(infadapter_cost[{duration}s])")
+    cost = _get_value(cost)
+    accuracy = prom.get_instant(f"avg_over_time(infadapter_accuracy[{duration}s])")
+    accuracy = _get_value(accuracy, should_round=False)
+    
+    with open(f"{path}/whole.txt", "w") as f:
+        json.dump(
+            {"accuracy": accuracy, "cost": cost, "p99_latency": percentile_99},
+            f
+        )
 
 
 if __name__ == "__main__":
-    solver_type = SOLVER_TYPE_VPA
-    model_version = model_versions[0]
-    starter = Starter(solver_type=solver_type)
-    prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), starter.prom_port)
-    node_port = starter.setup(model_version)
-    
-    start_time = datetime.now().timestamp()
-    event = Event()
-    query_task = Thread(target=query_metrics, args=(starter.prom_port, event, solver_type, model_version))
-    query_task.start()
-    
-    # Start generating load
-    
-    total_requests, total_seconds = generate_workload(
-        f"http://{starter.node_ip}:{node_port}/predict"
-    )
-    event.set()
-    query_task.join()
-    starter.delete()
+    solver_type = SOLVER_TYPE_INFADAPTER
+    for model_version in model_versions:
+        starter = Starter(solver_type=solver_type)
+        prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), starter.prom_port)
+        node_port = starter.setup(model_version)
+        
+        start_time = datetime.now().timestamp()
+        event = Event()
+        query_task = Thread(target=query_metrics, args=(starter.prom_port, event, solver_type, model_version))
+        query_task.start()
+        
+        vpa_starter_task = None
+        if solver_type == SOLVER_TYPE_VPA:
+            vpa_starter_task = Thread(target=starter.create_vpa, args=(model_version,))
+            vpa_starter_task.start()
+        
+        # Start generating load
+        
+        total_requests, total_seconds = generate_workload(
+            f"http://{starter.node_ip}:{node_port}/predict"
+        )
+        event.set()
+        query_task.join()
+        if vpa_starter_task:
+            vpa_starter_task.join()
+        starter.delete()
+        time.sleep(30)
+        if solver_type != SOLVER_TYPE_VPA:
+            break

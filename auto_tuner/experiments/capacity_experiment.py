@@ -109,7 +109,7 @@ async def find_p99_latency(prom: PrometheusClient, url, rps):
     conn = TCPConnector(limit=0)
     async with ClientSession(connector=conn) as session:
         start_time = datetime.now().timestamp()
-        while current_time < 30:  # generate rps load based on exponential distribution for 30 seconds
+        while current_time < 16:  # generate rps load based on exponential distribution for 16 seconds
             task = asyncio.create_task(predict(session, url, data))
             tasks.append(task)
             next_time = np.random.exponential(1/rps)
@@ -141,18 +141,18 @@ def find_capacity(url, sla_ms, config, prom):
     
     if rate_cache.get(str(config)) is None:
         rps_list = []
-        for repeat in range(9):
+        for repeat in range(5):
             rps_list.append(
                 asyncio.run(
                     find_saturation_throughput(
                         prom,
                         url,
-                        40 * config[ParamTypes.REPLICA] * config[ParamTypes.CPU]
+                        30 * config[ParamTypes.REPLICA] * config[ParamTypes.CPU]
                     )
                 )
             )
             time.sleep(1)
-        rps = max(rps_list)
+        rps = round(max(rps_list))
         print(f"rp_list: {rps_list}")
         rate_cache[str(config)] = rps
     
@@ -163,14 +163,14 @@ def find_capacity(url, sla_ms, config, prom):
         hi = round(1.2 * peak_rate)
     else:
         hi = peak_rate
-    lo = max(int(0.5 * peak_rate), 0)
+    lo = int(0.3 * peak_rate)
         
     p99 = None
     
     final_capacity = None
     final_p99 = None
     while hi > lo + 1:
-        capacity = (hi + lo) // 2
+        capacity = int((hi + lo) / 2)
         if p99_cache.get(str(config)).get(capacity) is None:
             p99_cache[str(config)][capacity] = asyncio.run(find_p99_latency(prom, url, capacity))
         p99 = p99_cache[str(config)][capacity]
@@ -228,7 +228,7 @@ if __name__ == "__main__":
         prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
         prom = PrometheusClient(ip, prom_port)
         for replicas in [1]:
-            for cpu in range(1, 21):
+            for cpu in range(10, 21):
                 for arch in [18, 34, 50, 101, 152]:
                     mem = memory_sizes[arch]
                     for batch in [1]:
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                                     url = f"http://{ip}:{port}/v1/models/resnet:predict"
                                     # warmup(url)
                                     # time.sleep(2)
-                                    for sla in [750]:
+                                    for sla in [500, 750, 1000, 1500]:
                                         p99, capacity, saturation_tp = find_capacity(url, sla, config, prom)
                                         filepath = f'{AUTO_TUNER_DIRECTORY}/../results/capacity_result.csv'
                                         file_exists = os.path.exists(filepath)

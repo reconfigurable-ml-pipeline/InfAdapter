@@ -50,15 +50,16 @@ class Adapter:
         self.__max_cpu = int(os.environ["MAX_CPU"])
         self.__alpha = float(os.environ["ALPHA"])
         self.__beta = float(os.environ["BETA"])
+        self.__slo = int(os.environ["LATENCY_SLO_MS"])
         self.__lstm_prediction_error_percentage = int(os.environ["LSTM_PREDICTION_ERROR_PERCENTAGE"])
         self.__emw_prediction_error_percentage = int(os.environ["EMW_PREDICTION_ERROR_PERCENTAGE"])
         self.__warmup_count = int(os.environ["WARMUP_COUNT"])
         self.__solver_send_queue = AioQueue()
         self.__solver_receive_queue = AioQueue()
-        self.__solver_type = os.environ["SOLVER_TYPE"]  # i=infadaptor, m=MS+
+        self.__solver_type = os.environ["SOLVER_TYPE"]  # i=infadaptor, m=MS+, v=VPA
         self.__capacity_models_paths = {}
         for v in self.__model_versions:
-            self.__capacity_models_paths[v] = f"{os.environ['CAPACITY_MODELS']}/{self.__base_model_name}-{v}.joblib"
+            self.__capacity_models_paths[v] = f"{os.environ['CAPACITY_MODELS']}/{self.__base_model_name}-{v}-{self.__slo}.joblib"
         self.__solver_process = AioProcess(
             target=self.solver,
             kwargs=dict(
@@ -87,9 +88,12 @@ class Adapter:
         if not self.is_initialized():
             return ''
         acc = 0
-        for mc in self.__current_config:
-            model_name, _, quota = mc
-            acc += self.__baseline_accuracies[model_name] * (quota / self.__current_load)
+        if self.__solver_type == "v":
+            acc = self.__baseline_accuracies[self.__current_config[0][0]]
+        else:
+            for mc in self.__current_config:
+                model_name, _, quota = mc
+                acc += self.__baseline_accuracies[model_name] * (quota / self.__current_load)
         return f"{acc:.4f}"
     
     def get_current_cost(self):
@@ -254,6 +258,7 @@ class Adapter:
     @staticmethod
     def solver(send_queue, receive_queue, solver_type, namespace, base_service_name, **kwargs):
         reconfiguration = Reconfiguration(**kwargs)
+        counter = 0
         while True:
             data = receive_queue.get()
             lmbda = data["lambda"]
@@ -263,7 +268,7 @@ class Adapter:
             elif solver_type == "m":
                 next_state = reconfiguration.reconfig_msp(lmbda, current_state)
             else:
-                m, _, _ = current_state[0]
+                m, current_size, _ = current_state[0]
                 vpa = get_vpa(f"{base_service_name}-{m}-vpa", namespace)
                 rec = vpa["status"].get("recommendation")
                 next_state = current_state
@@ -272,15 +277,33 @@ class Adapter:
                     for cr in rec["containerRecommendations"]:
                         if cr["containerName"] != "warmup":
                             cpu_rec = cr["target"]["cpu"]
+                            upper = cr["upperBound"]["cpu"]
+                            lower = cr["lowerBound"]["cpu"]
                             try:
                                 cpu_rec = int(cpu_rec)
                             except ValueError:
                                 cpu_rec = int(cpu_rec[:-1]) / 1000
                                 if cpu_rec != int(cpu_rec):
                                     cpu_rec = int(cpu_rec) + 1
+                            try:
+                                upper = int(upper)
+                            except ValueError:
+                                upper = int(upper[:-1]) / 1000
+                                upper = int(upper)
+                            try:
+                                lower = int(lower)
+                            except ValueError:
+                                lower = int(lower[:-1]) / 1000
+                                if lower != int(lower):
+                                    lower = int(lower) + 1
+                            if os.environ["VPA_TYPE"] == "V" and counter > 0:
+                                if lower < current_size < upper:
+                                    cpu_rec = None
+                                
                 if cpu_rec:
                     next_state = [(m, cpu_rec, 1)]
                                              
+            counter += 1
             send_queue.put(next_state)
         
     
@@ -543,7 +566,7 @@ class Adapter:
         next_config_dict = self.convert_config_to_dict(next_config)
         current_config_dict = self.convert_config_to_dict(self.__current_config)
         
-        if self.__solver_type == "v":
+        if self.__solver_type == "v" and os.environ["VPA_TYPE"] == "P":
             if list(next_config_dict.values())[0] <= list(current_config_dict.values())[0]:
                 if self.__stabilization_counter < self.__stabilization_interval:
                     self.__stabilization_counter += 1

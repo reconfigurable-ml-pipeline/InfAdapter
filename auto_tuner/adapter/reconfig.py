@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from joblib import load
 
@@ -21,13 +22,14 @@ class Reconfiguration:
         self.__alpha = alpha
         self.__beta = beta
         self.__min_cpu = 2
+        self.__cap_coef = float(os.environ["CAPACITY_COEF"])
     
     def regression_model(self, model_version, cpu):
         assert cpu >= 0, "cpu is a non-negative parameter"
         if cpu == 0:
             return 0
         X = np.array([cpu]).reshape(-1, 1)
-        return int(0.8 * self.__capacity_models[model_version].predict(X))
+        return int(self.__cap_coef * self.__capacity_models[model_version].predict(X))
     
     def find_all_valid_options(self, max_cpu, rate, models=None, option=None, options=None):
         if models is None:
