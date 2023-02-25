@@ -16,45 +16,56 @@ class Reconfiguration:
     ):
         self.__max_cpu = max_cpu
         self.__model_versions = sorted(model_versions)
-        self.__capacity_models = {v: load(capacity_models_paths[v]) for v in self.__model_versions}
+        capacity_models = {v: load(capacity_models_paths[v]) for v in self.__model_versions}
         self.__baseline_accuracies = baseline_accuracies
         self.__load_times = load_times
         self.__alpha = alpha
         self.__beta = beta
         self.__min_cpu = 2
         self.__cap_coef = float(os.environ["CAPACITY_COEF"])
+        self.x = 0
+        
+        self.__options = []  # global list for the recursive generator function
+        
+        import time
+        t = time.perf_counter()
+        
+        # Caching regresison predictions
+        self.__capacities = {v: {} for v in self.__model_versions}
+        for c in range(2, self.__max_cpu + 1):
+            X = np.array([c]).reshape(-1, 1)
+            for m in self.__model_versions:
+                self.__capacities[m][c] = int(self.__cap_coef * capacity_models[m].predict(X))
+    
     
     def regression_model(self, model_version, cpu):
         assert cpu >= 0, "cpu is a non-negative parameter"
         if cpu == 0:
             return 0
-        X = np.array([cpu]).reshape(-1, 1)
-        return int(self.__cap_coef * self.__capacity_models[model_version].predict(X))
+        return self.__capacities[model_version][cpu]
     
-    def find_all_valid_options(self, max_cpu, rate, models=None, option=None, options=None):
-        if models is None:
-            models = self.__model_versions
-            
+    
+    def find_all_valid_options(self, idx, max_cpu, rate, option=None):
         if option is None:
+            self.x = 0
             option = []
-        
-        if options is None:
-            options = []
-        
+        self.x += 1
         if rate <= 0:
-            return option[:]
+            return self.__options.append(option)
         
-        for mi in range(len(models)):
-            m = models[mi]
-            ms = models[mi+1:]
-            for c in range(self.__min_cpu, max_cpu + 1):
-                p = self.find_all_valid_options(
-                    max_cpu-c, rate - self.regression_model(m, c), ms, option + [(m, c)], options
-                )
-                if p:
-                    options.append(p)
-        if models == self.__model_versions:
-            return options
+        if idx == len(self.__model_versions):
+            return
+        
+        m = self.__model_versions[idx]
+        
+        self.find_all_valid_options(
+            idx+1, max_cpu, rate, option
+        )
+        
+        for c in range(self.__min_cpu, max_cpu + 1):
+            self.find_all_valid_options(
+                idx+1, max_cpu-c, rate - self.regression_model(m, c), option + [(m, c)]
+            )
         
     def assign_shares_to_options_models(self, options, lmbda):
         options_with_shares = []
@@ -119,10 +130,11 @@ class Reconfiguration:
                 max_cpu = cpu
                 break
         # print("max_cpu", max_cpu)
-        all_options = self.find_all_valid_options(max_cpu, lmbda)
-        all_options_with_shares = self.assign_shares_to_options_models(all_options, lmbda)
+        self.find_all_valid_options(0, max_cpu, lmbda)
+        all_options_with_shares = self.assign_shares_to_options_models(self.__options, lmbda)
         # print("len", len(all_options_with_shares))
         best_option = self.find_best_option(all_options_with_shares, current_option)
+        self.__options = []
         return best_option
     
     def reconfig_msp(self, lmbda, current_option):

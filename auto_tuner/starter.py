@@ -20,7 +20,7 @@ from auto_tuner.utils.prometheus import PrometheusClient
 from auto_tuner.experiments.workload import generate_workload
 
 
-GET_METRICS_INTERVAL = 2  # Seconds
+GET_METRICS_INTERVAL = 5  # Seconds
 
 SOLVER_TYPE_INFADAPTER = "i"
 SOLVER_TYPE_MSP = "m"
@@ -106,7 +106,7 @@ class Starter:
             "WARMUP_COUNT": self.warmup_count,
             "FIRST_DECIDE_DELAY_MINUTES": self.first_decide_delay_minutes,
             "SOLVER_TYPE": self.solver_type,
-            "STABILIZATION_INTERVAL": 6,
+            "STABILIZATION_INTERVAL": 4,
             "DECISION_INTERVAL": 30,
             "VPA_TYPE": "P",
             "CAPACITY_COEF": 0.8,
@@ -271,7 +271,7 @@ def query_metrics(prom_port, event: Event, res: dict, path: str):
         }
         
     prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), prom_port)
-    time.sleep(60)
+    time.sleep(90)
     t = time.perf_counter()
     os.system(f"mkdir -p {path}")
     while True:
