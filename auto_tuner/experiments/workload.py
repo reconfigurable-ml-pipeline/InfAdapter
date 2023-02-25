@@ -15,7 +15,7 @@ day = 60 * 60 * 24
 # length = 5 * 60
 workload_pattern = list(map(int, workload_pattern.split()))
 # workload_pattern = workload_pattern[18*length:19*length]
-workload_pattern = workload_pattern[15 * day + 80 * 60 : 15 * day + 105 * 60]
+workload_pattern = workload_pattern[15 * day + 82 * 60 : 15 * day + 103 * 60]
 
 workload_pattern = np.array(workload_pattern)
 
@@ -67,6 +67,6 @@ def generate_workload(url):
     plt.savefig(f"{results_dir}/workload.png", format="png")
     plt.close()
     print("total number of requests being sent", sum(workload_pattern))
-    counter, total_seconds = WorkloadGenerator(workload=workload_pattern, endpoint=url, http_method="post").start()
-    print(f"counter: {counter}, total_seconds: {total_seconds}")
-    return counter, total_seconds
+    counter, success_requests = WorkloadGenerator(workload=workload_pattern, endpoint=url, http_method="post").start()
+    print(f"counter: {counter}, success_requests: {success_requests}")
+    return counter, success_requests

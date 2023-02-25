@@ -2,6 +2,7 @@ import time
 import requests
 import os
 import json
+import asyncio
 from threading import Thread, Event
 import csv
 from datetime import datetime
@@ -19,7 +20,7 @@ from auto_tuner.utils.prometheus import PrometheusClient
 from auto_tuner.experiments.workload import generate_workload
 
 
-GET_METRICS_INTERVAL = 5  # Seconds
+GET_METRICS_INTERVAL = 2  # Seconds
 
 SOLVER_TYPE_INFADAPTER = "i"
 SOLVER_TYPE_MSP = "m"
@@ -60,13 +61,6 @@ class Starter:
         self.container_ports = [8500, 8501]
         self.model_versions = model_versions
         self.prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
-        # self.baseline_accuracies = {
-        #     18: 89.078,
-        #     34: 91.42,
-        #     50: 92.862,
-        #     101: 93.546,
-        #     152: 94.046,
-        # }
 
         self.baseline_accuracies = baseline_accuracies
         self.load_times = {
@@ -85,7 +79,7 @@ class Starter:
         }
         self.node_ip = os.getenv("CLUSTER_NODE_IP")
         self.max_cpu = 20
-        self.alpha = 0.04
+        self.alpha = 0.05
         self.beta = 0.001
         self.warmup_count = 3
         self.first_decide_delay_minutes = 2
@@ -114,7 +108,7 @@ class Starter:
             "SOLVER_TYPE": self.solver_type,
             "STABILIZATION_INTERVAL": 6,
             "DECISION_INTERVAL": 30,
-            "VPA_TYPE": "V",
+            "VPA_TYPE": "P",
             "CAPACITY_COEF": 0.8,
         }
 
@@ -167,6 +161,7 @@ class Starter:
             target_kind="Deployment",
             target_name=service_name,
             target_container_name=f"{service_name}-container",
+            controlled_resources=["cpu"],
             namespace=self.namespace,
             update_mode="Off"
         )
@@ -232,56 +227,70 @@ def _get_value(prom_res, divide_by=1, should_round=True):
                 return v
 
 
-def query_metrics(prom_port, event: Event, solver_type: str, model_version: int):
+def query_metrics(prom_port, event: Event, res: dict, path: str):
+    async def get_metrics(prom):
+        loop = asyncio.get_event_loop()
+        percentiles = {
+            99: None, 98: None, 97: None, 96: None, 95: None, 90: None, 85: None,
+            80: None, 75: None, 70: None, 65: None, 60: None, 55: None, 50: None,
+            40: None, 30: None, 20: None, 10: None
+        }
+        for pl in percentiles.keys():
+            percentiles[pl] = loop.run_in_executor(None, lambda: prom.get_instant(
+                f'histogram_quantile(0.{pl}, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", API="predict", entrypoint="REST"}}[{GET_METRICS_INTERVAL}s])) by (le)) / 1000'
+            ))
+
+        cost = loop.run_in_executor(
+            None, lambda: prom.get_instant(f"last_over_time(infadapter_cost[{GET_METRICS_INTERVAL}s])")
+        )
+        accuracy = loop.run_in_executor(
+            None, lambda: prom.get_instant(f"last_over_time(infadapter_accuracy[{GET_METRICS_INTERVAL}s])")
+        )
+        rate = loop.run_in_executor(
+            None, lambda: prom.get_instant(f"sum(rate(dispatcher_requests_total[{GET_METRICS_INTERVAL}s]))")
+        )
+        tp = loop.run_in_executor(
+            None, lambda: prom.get_instant(f"sum(rate(:tensorflow:serving:request_count[{GET_METRICS_INTERVAL}s]))")
+        )
+        
+        cost = _get_value(await cost)
+        accuracy = _get_value(await accuracy, should_round=False)
+        rate = _get_value(await rate, should_round=False)
+        tp = _get_value(await tp, should_round=False)
+        
+        for pl in percentiles.keys():
+            percentiles[pl] = _get_value(await percentiles[pl], divide_by=1000)
+        
+        return {
+            **percentiles,
+            "accuracy": accuracy,
+            "cost": cost,
+            "rate": rate,
+            "tp": tp,
+            "timestamp": datetime.now().isoformat()
+        }
+        
     prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), prom_port)
     time.sleep(60)
     t = time.perf_counter()
-    if solver_type == SOLVER_TYPE_INFADAPTER:
-        filename = "infadapter"
-    elif solver_type == SOLVER_TYPE_MSP:
-        filename = "msp"
-    else:
-        filename = f"vpa-{model_version}"
-    path = f"{AUTO_TUNER_DIRECTORY}/../results/{filename}"
     os.system(f"mkdir -p {path}")
     while True:
         if event.is_set():
             break
         time.sleep(GET_METRICS_INTERVAL)
-        percentile_99 = prom.get_instant(
-            f'histogram_quantile(0.99, sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", API="predict", entrypoint="REST"}}[{GET_METRICS_INTERVAL}s])) by (le)) / 1000'
-        )
-        percentile_99 = _get_value(percentile_99, divide_by=1000)
-
-        cost = prom.get_instant(f"last_over_time(infadapter_cost[{GET_METRICS_INTERVAL}s])")
-        cost = _get_value(cost)
-        accuracy = prom.get_instant(f"last_over_time(infadapter_accuracy[{GET_METRICS_INTERVAL}s])")
-        accuracy = _get_value(accuracy, should_round=False)
-        rate = prom.get_instant(f"sum(rate(dispatcher_requests_total[{GET_METRICS_INTERVAL}s]))")
-        rate = _get_value(rate, should_round=False)
-
+        metrics = asyncio.run(get_metrics(prom))
         filepath = f"{path}/series.csv"
         file_exists = os.path.exists(filepath)
         with open(filepath, "a") as f:
             field_names = [
-                "p99_latency",
-                "accuracy",
-                "cost",
-                "rate",
-                "timestamp"
+                *list(metrics.keys())
             ]
             writer = csv.DictWriter(f, fieldnames=field_names)
             if not file_exists:
                 writer.writeheader()
 
             writer.writerow(
-                {
-                    "p99_latency": percentile_99,
-                    "accuracy": accuracy,
-                    "cost": cost,
-                    "rate": rate,
-                    "timestamp": datetime.now().isoformat()
-                }
+                metrics
             )
     
     duration = int(time.perf_counter() - t)
@@ -294,24 +303,27 @@ def query_metrics(prom_port, event: Event, solver_type: str, model_version: int)
     cost = _get_value(cost)
     accuracy = prom.get_instant(f"avg_over_time(infadapter_accuracy[{duration}s])")
     accuracy = _get_value(accuracy, should_round=False)
-    
-    with open(f"{path}/whole.txt", "w") as f:
-        json.dump(
-            {"accuracy": accuracy, "cost": cost, "p99_latency": percentile_99},
-            f
-        )
+    res.update({"accuracy": accuracy, "cost": cost, "p99_latency": percentile_99})
 
 
 if __name__ == "__main__":
     solver_type = SOLVER_TYPE_INFADAPTER
     for model_version in model_versions:
+        if solver_type == SOLVER_TYPE_INFADAPTER:
+            filename = "infadapter"
+        elif solver_type == SOLVER_TYPE_MSP:
+            filename = "msp"
+        else:
+            filename = f"vpa-{model_version}"
+        path = f"{AUTO_TUNER_DIRECTORY}/../results/{filename}"
+        res = {}
         starter = Starter(solver_type=solver_type)
         prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), starter.prom_port)
         node_port = starter.setup(model_version)
         
         start_time = datetime.now().timestamp()
         event = Event()
-        query_task = Thread(target=query_metrics, args=(starter.prom_port, event, solver_type, model_version))
+        query_task = Thread(target=query_metrics, args=(starter.prom_port, event, res, path))
         query_task.start()
         
         vpa_starter_task = None
@@ -321,11 +333,19 @@ if __name__ == "__main__":
         
         # Start generating load
         
-        total_requests, total_seconds = generate_workload(
+        total_requests, successful_requests = generate_workload(
             f"http://{starter.node_ip}:{node_port}/predict"
         )
+        
+        res["total_requests"] = int(total_requests)
+        res["successful_requests"] = int(successful_requests)
         event.set()
         query_task.join()
+        with open(f"{path}/whole.txt", "w") as f:
+            json.dump(
+                res,
+                f
+            )
         if vpa_starter_task:
             vpa_starter_task.join()
         starter.delete()
