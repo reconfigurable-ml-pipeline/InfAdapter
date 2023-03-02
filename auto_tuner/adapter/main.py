@@ -82,6 +82,7 @@ class Adapter:
         self.__thread_executor = ThreadPoolExecutor(max_workers=2 * len(self.__model_versions))
         
         self.logger = logging.getLogger()
+        self.__max_enqueued_batches = {}
         
         
     def get_current_accuracy(self):
@@ -116,6 +117,14 @@ class Adapter:
             d[m] = c
         return d
     
+    def get_batch_configuration(self, model_version):
+        return f"""
+        max_batch_size {{ value: 1 }}
+        batch_timeout_micros {{ value: 0 }}
+        max_enqueued_batches {{ value: {self.__max_enqueued_batches[model_version]} }}
+        num_batch_threads {{ value: {self.__max_cpu} }}
+        """
+    
     async def initialize(self, data):
         self.__dispatcher_session = ClientSession()
         self.__prometheus_session = ClientSession()
@@ -133,6 +142,8 @@ class Adapter:
                 beta=self.__beta
             )
         )
+        for v in self.__model_versions:
+            self.__max_enqueued_batches[v] = reconfiguration.regression_model(v, self.__max_cpu) * 2
         loop = asyncio.get_event_loop()
         for m in self.__model_versions:
             await loop.run_in_executor(
@@ -150,6 +161,7 @@ class Adapter:
                             path: "/monitoring/prometheus/metrics"
                             }
                         """,
+                        "batch.config": self.get_batch_configuration(m)
                     }
                 )
             )
@@ -366,7 +378,8 @@ class Adapter:
             f"--rest_api_num_threads={15 * size}",
             f"--model_config_file={volume_mount_path}/models.config",
             f"--monitoring_config_file={volume_mount_path}/monitoring.config",
-            "--enable_batching=false",
+            f"--batching_parameters_file={volume_mount_path}/batch.config",
+            "--enable_batching=true",
         ]
 
         labels = {**self.__container_labels, "model": self.__base_model_name + f"-{model_version}"}
