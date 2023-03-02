@@ -9,15 +9,17 @@ from auto_tuner import AUTO_TUNER_DIRECTORY
 os.system(f"mkdir -p {AUTO_TUNER_DIRECTORY}/adapter/capacity_models")
 
 df = pd.read_csv(f"{AUTO_TUNER_DIRECTORY}/adapter/capacity_result_Feb_21.csv")
-slas = list(df["SLA"].unique())
+# slas = list(df["SLA"].unique())
+slas = [750]
 
 versions = [18, 34, 50, 101, 152]
 models = {v: {} for v in versions}
 for version in versions:
     for sla in slas:
         df_sla = df[df["SLA"] == sla]
-        X_train = np.array(df_sla[(df_sla["CPU"] <= 10) & (df_sla["ARCH"] == version)]["CPU"]).reshape(-1, 1)
-        Y_train = df_sla[(df_sla["CPU"] <= 10) & (df_sla["ARCH"] == version)]["capacity"]
+        df_sla = df_sla.query("CPU in (1,2,4,8,16)")
+        X_train = np.array(df_sla[(df_sla["ARCH"] == version)]["CPU"]).reshape(-1, 1)
+        Y_train = df_sla[(df_sla["ARCH"] == version)]["capacity"]
 
         model = LinearRegression()
         model.fit(X_train, Y_train)

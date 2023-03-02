@@ -1,5 +1,5 @@
 import os
-from aiohttp import ClientSession, web
+from aiohttp import ClientSession, web, ClientTimeout
 
 
 class Dispatcher:
@@ -19,7 +19,7 @@ class Dispatcher:
         self.model_names = list(data.keys())
         self.endpoints = list(data.values())
         for model_name in self.model_names:
-            self.sessions[model_name] = ClientSession()
+            self.sessions[model_name] = ClientSession(timeout=ClientTimeout(total=int(os.getenv("TIMEOUT", 30))))
             self.total_requests[model_name] = 0
     
     

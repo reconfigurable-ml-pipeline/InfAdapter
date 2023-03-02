@@ -49,13 +49,14 @@ class Reconfiguration:
         if option is None:
             self.x = 0
             option = []
-        self.x += 1
+        
         if rate <= 0:
             return self.__options.append(option)
         
         if idx == len(self.__model_versions):
             return
         
+        self.x += 1
         m = self.__model_versions[idx]
         
         self.find_all_valid_options(

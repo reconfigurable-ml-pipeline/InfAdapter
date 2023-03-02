@@ -26,18 +26,22 @@ SOLVER_TYPE_INFADAPTER = "i"
 SOLVER_TYPE_MSP = "m"
 SOLVER_TYPE_VPA = "v"
 
+# initial_states = {
+#     18: 4,
+#     34: 6,
+#     50: 8,
+#     101: 15,
+#     152: 20
+# }
+
 initial_states = {
-    18: 4,
-    34: 6,
-    50: 8,
-    101: 15,
+    18: 20,
+    34: 20,
+    50: 20,
+    101: 20,
     152: 20
 }
 
-model_versions = [18, 34, 50, 101, 152]
-base_model_name = "resnet"
-base_service_name = f"tfserving-{base_model_name}"
-namespace = "mehran"
 baseline_accuracies = {
     18: .69758,
     34: .73314,
@@ -45,6 +49,27 @@ baseline_accuracies = {
     101: .77374,
     152: .78312,
 }
+
+load_times = {
+    18: 6.44,
+    34: 6.79,
+    50: 6.82,
+    101: 7.77,
+    152: 8.52,
+}
+
+memory_sizes = {
+    18: "1G",
+    34: "1.25G",
+    50: "1.5G",
+    101: "2G",
+    152: "2.25G"
+}
+
+model_versions = [18, 34, 50, 101, 152]
+base_model_name = "resnet"
+base_service_name = f"tfserving-{base_model_name}"
+namespace = "mehran"
 
 
 class Starter:
@@ -63,20 +88,8 @@ class Starter:
         self.prom_port = get_service("prometheus-k8s", "monitoring")["node_port"]
 
         self.baseline_accuracies = baseline_accuracies
-        self.load_times = {
-            18: 6.44,
-            34: 6.79,
-            50: 6.82,
-            101: 7.77,
-            152: 8.52,
-        }
-        self.memory_sizes = {
-            18: "1G",
-            34: "1.25G",
-            50: "1.5G",
-            101: "2G",
-            152: "2.25G"
-        }
+        self.memory_sizes = memory_sizes
+        self.load_times = load_times
         self.node_ip = os.getenv("CLUSTER_NODE_IP")
         self.max_cpu = 20
         self.alpha = 0.05
@@ -271,7 +284,7 @@ def query_metrics(prom_port, event: Event, res: dict, path: str):
         }
         
     prom = PrometheusClient(os.getenv("CLUSTER_NODE_IP"), prom_port)
-    time.sleep(90)
+    time.sleep(1)
     t = time.perf_counter()
     os.system(f"mkdir -p {path}")
     while True:
