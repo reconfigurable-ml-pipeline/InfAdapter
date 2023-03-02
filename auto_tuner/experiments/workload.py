@@ -48,7 +48,7 @@ def generate_workload(url):
         
         @classmethod
         def process_response(cls, data_id: str, response: dict):
-            pass
+            return response.get("error") is None
             # print("correct label:", data_id)
                 
             # if "error" in response.keys():
