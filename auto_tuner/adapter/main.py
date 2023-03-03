@@ -13,7 +13,7 @@ from aiohttp import ClientSession, web
 from tensorflow.keras.models import load_model
 from kube_resources.deployments import create_deployment, delete_deployment, get_deployment, update_deployment
 from kube_resources.services import create_service as create_kubernetes_service, get_service
-from kube_resources.configmaps import create_configmap
+from kube_resources.configmaps import create_configmap, update_configmap
 from kube_resources.vpas import get_vpa
 from reconfig import Reconfiguration
 from aioprocessing import AioProcess, AioQueue
@@ -82,7 +82,7 @@ class Adapter:
         self.__thread_executor = ThreadPoolExecutor(max_workers=2 * len(self.__model_versions))
         
         self.logger = logging.getLogger()
-        self.__max_enqueued_batches = {}
+        self.__reconfiguration = None
         
         
     def get_current_accuracy(self):
@@ -117,12 +117,14 @@ class Adapter:
             d[m] = c
         return d
     
-    def get_batch_configuration(self, model_version):
+    def get_batch_configuration(self, meb, nbt = None):
+        if nbt is None:
+            nbt = self.__max_cpu
         return f"""
         max_batch_size {{ value: 1 }}
         batch_timeout_micros {{ value: 0 }}
-        max_enqueued_batches {{ value: {self.__max_enqueued_batches[model_version]} }}
-        num_batch_threads {{ value: {self.__max_cpu} }}
+        max_enqueued_batches {{ value: {meb} }}
+        num_batch_threads {{ value: {nbt} }}
         """
     
     async def initialize(self, data):
@@ -131,7 +133,7 @@ class Adapter:
         self.__lstm = load_model(os.environ["LSTM_MODEL"])
         current_config = data["models_config"]
         
-        reconfiguration = Reconfiguration(
+        self.__reconfiguration = reconfiguration = Reconfiguration(
             **dict(
                 model_versions=self.__model_versions,
                 max_cpu=self.__max_cpu,
@@ -142,8 +144,7 @@ class Adapter:
                 beta=self.__beta
             )
         )
-        for v in self.__model_versions:
-            self.__max_enqueued_batches[v] = reconfiguration.regression_model(v, self.__max_cpu) * 2
+        
         loop = asyncio.get_event_loop()
         for m in self.__model_versions:
             await loop.run_in_executor(
@@ -161,7 +162,9 @@ class Adapter:
                             path: "/monitoring/prometheus/metrics"
                             }
                         """,
-                        "batch.config": self.get_batch_configuration(m)
+                        "batch.config": self.get_batch_configuration(
+                            int(reconfiguration.regression_model(m, self.__max_cpu) * 1.4)
+                        )
                     }
                 )
             )
@@ -368,6 +371,31 @@ class Adapter:
         models_volume_name = f"{service_name}-models-vol"
         warmup_volume_name = f"{service_name}-warmup-vol"
         
+        loop = asyncio.get_event_loop()
+        
+        await loop.run_in_executor(
+            self.__thread_executor,
+            lambda: update_configmap(
+                self.__base_service_name + f"-{model_version}-cm",
+                namespace=self.__k8s_namespace,
+                data={
+                    "models.config": self.get_serving_configuration(
+                        f"/models/{self.__base_model_name}/", "tensorflow", model_version
+                    ),
+                    "monitoring.config": """
+                        prometheus_config {
+                        enable: true,
+                        path: "/monitoring/prometheus/metrics"
+                        }
+                    """,
+                    "batch.config": self.get_batch_configuration(
+                        int(self.__reconfiguration.regression_model(model_version, size) * 1.4),
+                        size
+                    )
+                }
+            )
+        )
+        
         kwargs.update({"request_cpu": size, "limit_cpu": size, "request_mem": mem, "limit_mem": mem})
         kwargs["container_ports"] = self.__container_ports
         kwargs["image"] = "tensorflow/serving:2.8.0"
@@ -410,7 +438,7 @@ class Adapter:
         if deploy_version is not None:
             deployment_name = deployment_name + f"-{deploy_version}"
 
-        loop = asyncio.get_event_loop()
+        
         await loop.run_in_executor(
             self.__thread_executor,
             lambda: create_deployment(
@@ -444,6 +472,31 @@ class Adapter:
         kwargs["env_vars"]["MODEL_NAME"] = self.__base_model_name
         volume_mount_path = "/etc/tfserving"
         
+        loop = asyncio.get_event_loop()
+        
+        await loop.run_in_executor(
+            self.__thread_executor,
+            lambda: update_configmap(
+                self.__base_service_name + f"-{model_version}-cm",
+                namespace=self.__k8s_namespace,
+                data={
+                    "models.config": self.get_serving_configuration(
+                        f"/models/{self.__base_model_name}/", "tensorflow", model_version
+                    ),
+                    "monitoring.config": """
+                        prometheus_config {
+                        enable: true,
+                        path: "/monitoring/prometheus/metrics"
+                        }
+                    """,
+                    "batch.config": self.get_batch_configuration(
+                        int(self.__reconfiguration.regression_model(model_version, size) * 1.4),
+                        size
+                    )
+                }
+            )
+        )
+        
         kwargs.update({"request_cpu": size, "limit_cpu": size, "request_mem": mem, "limit_mem": mem})
         kwargs["image"] = "tensorflow/serving:2.8.0"
 
@@ -453,12 +506,12 @@ class Adapter:
             f"--rest_api_num_threads={15 * size}",
             f"--model_config_file={volume_mount_path}/models.config",
             f"--monitoring_config_file={volume_mount_path}/monitoring.config",
-            "--enable_batching=false",
+            f"--batching_parameters_file={volume_mount_path}/batch.config",
+            "--enable_batching=true",
         ]
 
         kwargs.update(readiness_probe={"exec": ["cat", "/warmup/done"], "period_seconds": 1})
 
-        loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             self.__thread_executor,
             lambda: update_deployment(
