@@ -163,7 +163,7 @@ class Adapter:
                             }
                         """,
                         "batch.config": self.get_batch_configuration(
-                            int(reconfiguration.regression_model(m, self.__max_cpu) * 1.4)
+                            int(reconfiguration.regression_model(m, self.__max_cpu) * 1.25)
                         )
                     }
                 )
@@ -389,7 +389,7 @@ class Adapter:
                         }
                     """,
                     "batch.config": self.get_batch_configuration(
-                        int(self.__reconfiguration.regression_model(model_version, size) * 1.4),
+                        int(self.__reconfiguration.regression_model(model_version, size) * 1.25),
                         size
                     )
                 }
@@ -490,7 +490,7 @@ class Adapter:
                         }
                     """,
                     "batch.config": self.get_batch_configuration(
-                        int(self.__reconfiguration.regression_model(model_version, size) * 1.4),
+                        int(self.__reconfiguration.regression_model(model_version, size) * 1.25),
                         size
                     )
                 }

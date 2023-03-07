@@ -1,7 +1,8 @@
 *InfAdapter: An Adaptation Mechanism for ML Inference Services*
 -
 
-<img src="InfAdapter.png" alt="InfAdapter Structure" style="width:600px;"/>
+<img src="architecture.png" alt="InfAdapter Structure" style="width:600px;"/>
+<img src="adapter-component.png" alt="InfAdapter Structure" style="width:600px;"/>
 
 ## Instructions
 X. Create a Kubernetes cluster
