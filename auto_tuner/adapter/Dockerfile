@@ -11,6 +11,7 @@ RUN pip install aiohttp==3.8.3
 RUN pip install aioprocessing==2.0.1
 RUN pip install pandas==1.5.2
 RUN pip install git+https://github.com/reconfigurable-ml-pipeline/kubernetes-python-client.git
+RUN pip install gurobipy==10.0.1
 
 COPY forecasters/lstm_saved_model /app/lstm_saved_model
 ENV LSTM_MODEL=/app/lstm_saved_model

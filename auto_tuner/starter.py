@@ -104,7 +104,7 @@ class Starter:
             "MEMORY_SIZES": json.dumps(self.memory_sizes),
             "LOAD_TIMES": json.dumps(self.load_times),
             "PROMETHEUS_ENDPOINT": f"{self.node_ip}:{self.prom_port}",
-            "NFS_SERVER_IP": self.node_ip,
+            "NFS_SERVER_IP": os.getenv("NFS_SERVER_IP", self.node_ip),
             "CLUSTER_NODE_IP": self.node_ip,
             "CONTAINER_PORTS": json.dumps(self.container_ports),
             "CONTAINER_LABELS": json.dumps(self.labels),
@@ -122,7 +122,7 @@ class Starter:
             "STABILIZATION_INTERVAL": 4,
             "DECISION_INTERVAL": 30,
             "VPA_TYPE": "P",
-            "CAPACITY_COEF": 0.8,
+            "CAPACITY_COEF": str(0.8),
         }
 
     

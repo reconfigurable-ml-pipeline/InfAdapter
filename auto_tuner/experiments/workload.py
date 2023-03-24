@@ -12,10 +12,10 @@ with open(f"{AUTO_TUNER_DIRECTORY}/dataset/twitter_trace/workload.txt", "r") as 
     workload_pattern = f.read()
 
 day = 60 * 60 * 24
-# length = 5 * 60
 workload_pattern = list(map(int, workload_pattern.split()))
-# workload_pattern = workload_pattern[18*length:19*length]
+
 workload_pattern = workload_pattern[15 * day + 82 * 60 : 15 * day + 103 * 60]
+# workload_pattern = workload_pattern[16 * day + 95 * 60 : 16 * day + 120 * 60]
 
 workload_pattern = np.array(workload_pattern)
 

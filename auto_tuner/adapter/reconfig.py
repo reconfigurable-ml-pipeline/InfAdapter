@@ -1,6 +1,8 @@
 import os
-import numpy as np
+# import numpy as np
 from joblib import load
+import gurobipy as gp
+import pandas as pd
 
 
 class Reconfiguration:
@@ -24,25 +26,39 @@ class Reconfiguration:
         self.__min_cpu = 2
         self.__cap_coef = float(os.environ["CAPACITY_COEF"])
         self.x = 0
+        self.__regression_coefficients = []
+        for i in range(len(self.__model_versions)):
+            reg = capacity_models[self.__model_versions[i]]
+            coef1 = pd.DataFrame(
+                reg.coef_, ["coef"], columns=['Coefficients']
+            )["Coefficients"][0]
+            example_cpu = 4
+            p1 = coef1 * example_cpu
+            actual = float(reg.predict([[example_cpu]]))
+            coef2 = actual - p1
+            coef2 = min(coef2, 0.99)
+            coef2 = int(coef2)
+            self.__regression_coefficients.append([coef1, coef2])
         
         self.__options = []  # global list for the recursive generator function
         
-        import time
-        t = time.perf_counter()
-        
-        # Caching regresison predictions
-        self.__capacities = {v: {} for v in self.__model_versions}
-        for c in range(2, self.__max_cpu + 1):
-            X = np.array([c]).reshape(-1, 1)
-            for m in self.__model_versions:
-                self.__capacities[m][c] = int(self.__cap_coef * capacity_models[m].predict(X))
+        # # Caching regresison predictions
+        # self.__capacities = {v: {} for v in self.__model_versions}
+        # for c in range(2, self.__max_cpu + 1):
+        #     X = np.array([c]).reshape(-1, 1)
+        #     for m in self.__model_versions:
+        #         self.__capacities[m][c] = int(self.__cap_coef * capacity_models[m].predict(X))
     
     
     def regression_model(self, model_version, cpu):
         assert cpu >= 0, "cpu is a non-negative parameter"
         if cpu == 0:
             return 0
-        return self.__capacities[model_version][cpu]
+        return int(self.regression_model_gurobi(self.__model_versions.index(model_version), cpu))
+    
+    def regression_model_gurobi(self, model_idx, cpu):
+        coef1, coef2 = self.__regression_coefficients[model_idx]
+        return self.__cap_coef * (coef1 * cpu + coef2)
     
     
     def find_all_valid_options(self, idx, max_cpu, rate, option=None):
@@ -125,17 +141,19 @@ class Reconfiguration:
     
     def reconfig(self, lmbda, current_option):
         max_cpu = self.__max_cpu
-        mamv = sorted(self.__model_versions)[-1]
-        for cpu in range(self.__min_cpu, max_cpu + 1):
-            if self.regression_model(mamv, cpu) >= lmbda:
-                max_cpu = cpu
-                break
-        # print("max_cpu", max_cpu)
-        self.find_all_valid_options(0, max_cpu, lmbda)
-        all_options_with_shares = self.assign_shares_to_options_models(self.__options, lmbda)
-        # print("len", len(all_options_with_shares))
-        best_option = self.find_best_option(all_options_with_shares, current_option)
-        self.__options = []
+        # mamv = sorted(self.__model_versions)[-1]
+        # for cpu in range(self.__min_cpu, max_cpu + 1):
+        #     if self.regression_model(mamv, cpu) >= lmbda:
+        #         max_cpu = cpu
+        #         break
+        use_brute_force = False
+        if use_brute_force:
+            self.find_all_valid_options(0, max_cpu, lmbda)
+            all_options_with_shares = self.assign_shares_to_options_models(self.__options, lmbda)
+            best_option = self.find_best_option(all_options_with_shares, current_option)
+            self.__options = []
+        else:
+            best_option = self.run_optimizer(lmbda, current_option)
         return best_option
     
     def reconfig_msp(self, lmbda, current_option):
@@ -153,3 +171,72 @@ class Reconfiguration:
                     break
         best_options = self.find_best_option(all_options, current_option)
         return best_options
+    
+    def run_optimizer(self, lmbda, current_option):
+        current = self.convert_config_to_dict(current_option)
+        prev_state = []
+        for v in self.__model_versions:
+            prev_state.append(current.get(v, 0))
+        num_ms = len(self.__model_versions)
+        gp.setParam("LogToConsole", 0)
+        gp.setParam('OutputFlag', 0)
+        gp.setParam('Threads', 1)
+        model = gp.Model("Inference")
+        
+        n = model.addVars(num_ms, lb=0, ub=self.__max_cpu, vtype=gp.GRB.INTEGER, name="n")
+        reg = model.addVars(num_ms, lb=-10, vtype=gp.GRB.CONTINUOUS, name="reg")
+        tp = model.addVars(num_ms, lb=0, vtype=gp.GRB.INTEGER, name="tp")
+        tp_float = model.addVars(num_ms, lb=0, vtype=gp.GRB.CONTINUOUS, name="tp_float")
+        rl = model.addVars(num_ms, lb=0, vtype=gp.GRB.INTEGER, name="rl")
+        l = model.addVars(num_ms, lb=0, vtype=gp.GRB.INTEGER, name="l")
+        LC = model.addVar(name='LC', lb=0, vtype=gp.GRB.CONTINUOUS)
+        
+        forObj = model.addVars(num_ms, vtype = gp.GRB.CONTINUOUS)
+        check_v = model.addVars(num_ms, vtype=gp.GRB.BINARY, name='check_v')
+        vIs0 = model.addVars(num_ms, vtype=gp.GRB.BINARY, name='vIs0')
+        vIsP = model.addVars(num_ms, vtype=gp.GRB.BINARY, name='vIsP')
+        # if check_v is 0 then n=0 or n=n' (this implies if n!=0 and n!=n' then check_v=1)
+        model.addConstrs((vIs0[i] == 1) >> (n[i] == 0) for i in range(num_ms))
+        model.addConstrs((vIsP[i] == 1) >> (n[i] == prev_state[i]) for i in range(num_ms))
+        model.addConstrs(check_v[i] == gp.or_(vIs0[i], vIsP[i]) for i in range(num_ms))
+        model.addConstrs(forObj[i] == (1-check_v[i]) * list(self.__load_times.values())[i] for i in range(num_ms))
+        model.addConstr(LC == gp.max_(forObj[i] for i in range(num_ms)))
+        model.addConstrs((vIs0[i] == 0) >> ((n[i] - 1) >= 1) for i in range(num_ms))
+        model.addConstrs((reg[i] == self.regression_model_gurobi(i, n[i]) for i in range(num_ms)), name="regAssign")
+        model.addConstrs(tp_float[i] == gp.max_(reg[i], 0) for i in range(num_ms))
+        model.addConstrs(tp[i] <= tp_float[i] for i in range(num_ms))
+        model.addConstrs(tp[i] >= tp_float[i] - 0.999999 for i in range(num_ms))
+        model.addConstrs(
+            rl[i] == lmbda - (gp.quicksum(tp[j] for j in range(i+1, num_ms)))
+            for i in range(num_ms)
+        )
+        model.addConstrs(l[i] == gp.min_(tp[i], rl[i]) for i in range(num_ms))
+        RC = gp.quicksum(n[i] for i in range(num_ms))
+        AA = gp.quicksum((l[i] / lmbda) * list(self.__baseline_accuracies.values())[i] for i in range(num_ms))
+        model.addConstr(RC <= self.__max_cpu)       
+        model.addConstr(gp.quicksum(tp[i] for i in range(num_ms)) >= lmbda)
+        model.setObjective(
+            AA - 
+            self.__alpha * (RC / self.__max_cpu) -
+            self.__beta * (LC / max(self.__load_times.values())),
+            gp.GRB.MAXIMIZE
+        )
+        
+        model.optimize()
+        # model.computeIIS()
+        # model.write("test.ilp")
+        n_list, l_list = [], []
+        for v in model.getVars():
+            if v.varName in [f'n[{i}]' for i in range(num_ms)]:
+                n_list.append(int(v.x))
+            elif v.varName in [f'l[{i}]' for i in range(num_ms)]:
+                l_list.append(int(v.x))
+            
+            # print(v.varName, v.x)
+        
+        new_config = []
+        for i in range(num_ms):
+            v = self.__model_versions[i]
+            if n_list[i] > 0:
+                new_config.append((v, n_list[i], l_list[i] / lmbda))
+        return new_config
