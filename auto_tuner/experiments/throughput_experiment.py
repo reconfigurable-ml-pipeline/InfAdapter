@@ -71,7 +71,7 @@ def warmup(url):
 
 
 async def generate_load(url, lmbda, config, prom):
-    global server_count
+    global prev_server_count
     print("starting load generation...")
     print("config", config)
     tasks = []
@@ -80,7 +80,7 @@ async def generate_load(url, lmbda, config, prom):
     async with ClientSession() as session:
         start_time = time.perf_counter()
         data = images[0]
-        while current_time < 60:
+        while current_time < 10:
             task = asyncio.create_task(predict(session, url, data))
             tasks.append(task)
             next_time = np.random.exponential(1/lmbda)
@@ -100,10 +100,10 @@ async def generate_load(url, lmbda, config, prom):
 
     duration = time.perf_counter() - start_time
     duration_int = int(duration)
-    percent_708ms = prom.get_instant(
-        f'sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", le = "708235"}}[{duration_int}s]))'
-        f' / sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
-    )
+    # percent_708ms = prom.get_instant(
+    #     f'sum(rate(:tensorflow:serving:request_latency_bucket{{instance=~".*:8501", le = "708235"}}[{duration_int}s]))'
+    #     f' / sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
+    # )
     average_latency = prom.get_instant(
         f'sum(rate(:tensorflow:serving:request_latency_sum{{instance=~".*:8501"}}[{duration_int}s]))'
         f' / sum(rate(:tensorflow:serving:request_latency_count{{instance=~".*:8501"}}[{duration_int}s]))'
@@ -124,9 +124,9 @@ async def generate_load(url, lmbda, config, prom):
     )
     server_count = prom.get_instant('sum(:tensorflow:serving:request_latency_count{instance=~".*:8501"})')
     server_count = _get_value(server_count)
-    cpu_rate = prom.get_instant(f'sum(rate(container_cpu_usage_seconds_total{{container="{service_name}", service="kubelet"}}[{duration_int}s]))')
-    cpu_throt = prom.get_instant(f'sum(rate(container_cpu_cfs_throttled_seconds_total{{container="{service_name}", service="kubelet"}}[{duration_int}s]))')
-    mem_util = prom.get_instant(f'sum(container_memory_working_set_bytes{{container="{service_name}", service="kubelet"}})')
+    # cpu_rate = prom.get_instant(f'sum(rate(container_cpu_usage_seconds_total{{container="{service_name}", service="kubelet"}}[{duration_int}s]))')
+    # cpu_throt = prom.get_instant(f'sum(rate(container_cpu_cfs_throttled_seconds_total{{container="{service_name}", service="kubelet"}}[{duration_int}s]))')
+    # mem_util = prom.get_instant(f'sum(container_memory_working_set_bytes{{container="{service_name}", service="kubelet"}})')
     if server_count:
         server_count -= warmup_count
         temp = server_count
@@ -135,7 +135,7 @@ async def generate_load(url, lmbda, config, prom):
         prev_server_count = temp
 
     return {
-        "percent_708ms": _get_value(percent_708ms),
+        # "percent_708ms": _get_value(percent_708ms),
         "average_latency": round(average_latency, 2) if average_latency else None,
         "p99_latency": _get_value(percentile_99, divide_by=1000),
         "rate": _get_value(rate),
@@ -146,9 +146,9 @@ async def generate_load(url, lmbda, config, prom):
         "success_count": returns.count(True),
         "duration": round(duration, 2),
         "server_count": server_count,
-        "cpu_rate": _get_value(cpu_rate),
-        "cpu_throt": _get_value(cpu_throt),
-        "mem_util": _get_value(mem_util, divide_by=1000000)
+        # "cpu_rate": _get_value(cpu_rate),
+        # "cpu_throt": _get_value(cpu_throt),
+        # "mem_util": _get_value(mem_util, divide_by=1000000)
     }
 
 
@@ -162,6 +162,7 @@ def start_service(replicas, hardware, cpu, mem, arch, batch, num_batch_threads, 
         ParamTypes.MEMORY: mem,
         ParamTypes.MODEL_ARCHITECTURE: arch,
         ParamTypes.BATCH: batch,
+        ParamTypes.BATCH_TIMEOUT: 100000,
         ParamTypes.NUM_BATCH_THREADS: num_batch_threads,
         ParamTypes.MAX_ENQUEUED_BATCHES: max_enqueued_batches,
         ParamTypes.INTRA_OP_PARALLELISM:intra_op,
@@ -199,7 +200,7 @@ if __name__ == "__main__":
                 for mem in [f"{cpu}G"]:
                     # for arch in [18, 34, 50, 101, 152]:
                     for arch in [50]:
-                        for batch in [1, 8, 64]:
+                        for batch in [1, 4, 8]:
                             for nbt in [cpu]:
                                 for meb in [1000000]:
                                     for intra_op in [1, cpu]:
@@ -209,9 +210,9 @@ if __name__ == "__main__":
                                             config = start_service(replicas, hw, cpu, mem, arch, batch, nbt, meb, intra_op, inter_op)
                                             port = get_service(f"tfserving-resnet-rest", "mehran")["node_port"]
                                             url = f"http://{ip}:{port}/v1/models/resnet:predict"
-                                            warmup(url)
+                                            # warmup(url)
                                             time.sleep(2)
-                                            for lmbda in [20, 40, 60, 80, 100, 120]:
+                                            for lmbda in [1, 10, 20, 30, 40, 50, 60, 70, 80, 90]:
                                                 result = asyncio.run(generate_load(url, lmbda, config, prom))
                                                 filepath = f'{AUTO_TUNER_DIRECTORY}/../results/throughput_result.csv'
                                                 file_exists = os.path.exists(filepath)

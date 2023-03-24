@@ -41,13 +41,14 @@ def generate_workload(url):
 
     class WorkloadGenerator(BarAzmoon):
         
-        @classmethod
-        def get_request_data(cls) -> str:
+        def get_request_data(self) -> str:
             image = images[np.random.randint(0, 200)]
             return image["label_code"], image["data"]
         
-        @classmethod
-        def process_response(cls, data_id: str, response: dict):
+        def process_response(self, data_id: str, response: dict):
+            if response is None:
+                print("response None")
+                return False
             return response.get("error") is None
             # print("correct label:", data_id)
                 

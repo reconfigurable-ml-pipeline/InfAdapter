@@ -37,7 +37,7 @@ def deploy_ml_service(
     if max_enqueued_batches is None:
         max_enqueued_batches = 1000000
     enable_batching = False
-    if max_batch_size is not None and max_batch_size > 1:
+    if max_batch_size is not None:
         enable_batching = True
     
     if not kwargs.get("env_vars"):
