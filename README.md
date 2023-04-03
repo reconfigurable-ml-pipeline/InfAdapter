@@ -1,5 +1,7 @@
-*InfAdapter: An Adaptation Mechanism for ML Inference Services*
--
+## InfAdapter: An Adaptation Mechanism for ML Inference Services
+
+**Abstract** The use of machine learning (ML) inference for various applications is growing drastically. ML inference services engage with users directly, requiring fast and accurate responses. Moreover, these services face dynamic workloads of requests, imposing changes in their computing resources. Failing to right-size computing resources results in either latency service level objectives (SLOs) violations or wasted computing resources. Adapting to dynamic workloads considering all the pillars of accuracy, latency, and resource cost is challenging. In response to these challenges, we propose InfAdapter, that proactively selects a set of ML model variants with their resource allocations to meet latency SLO while maximizing an objective function composed of accuracy and cost. InfAdapter decreases SLO violation and costs up to 65\% and 33\%, respectively, compared to a popular industry autoscaler (Kubernetes Vertical Pod Autoscaler)
+
 
 <img src="architecture.png" alt="InfAdapter Structure" style="width:600px;"/>
 <img src="adapter-component.png" alt="InfAdapter Structure" style="width:600px;"/>
