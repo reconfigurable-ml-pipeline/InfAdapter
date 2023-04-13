@@ -26,6 +26,8 @@ insructions at [here](./examples/torch-resnet-kserve/example6/build_nfs_server.m
 
 8. Cache Docker images (Run and wait for "OK" message): `python auto_tuner/cache_images.py`
 
+9. Install the load testing library [BarAzmoon](https://github.com/reconfigurable-ml-pipeline/load_tester)
+
     ...
 
 
