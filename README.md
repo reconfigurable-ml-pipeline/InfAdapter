@@ -11,7 +11,7 @@
     1. Create a K8s cluster using Microk8s: [Get started](https://microk8s.io/docs/getting-started)
     2. Add another node to the k8s cluster: [Create a MicroK8s cluster](https://microk8s.io/docs/clustering)
 
-2. Set up Prometheus monitoring inside the cluster (Todo: how?)
+2. Set up Prometheus monitoring inside the cluster [Setup Monitoring](setup-monitoring.md)
 
 3. Create a namespace called mehran: `kubectl create ns mehran`
 
