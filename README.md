@@ -24,9 +24,9 @@ insructions at [here](./examples/torch-resnet-kserve/example6/build_nfs_server.m
 
 7. Export NFS server IP: `export NFS_SERVER=NFS_SERVER_IP` (If not set, the same above CLUSTER_NODE_IP will be used)
 
-8. Cache Docker images (Run and wait for "OK" message): `python auto_tuner/cache_images.py`
+8. Install Python requirements: `pip install -e .`
 
-9. Install the load testing library [BarAzmoon](https://github.com/reconfigurable-ml-pipeline/load_tester)
+9. Cache Docker images (Run and wait for "OK" message): `python auto_tuner/cache_images.py`
 
     ...
 

@@ -1,4 +1,4 @@
-## Prometheus and Grafana
+## Prometheus and Grafana for microk8s cluster
 
 1. Just use the builtin add-on
 ```
@@ -41,7 +41,7 @@ password: admin
 <your node ip>:<prometheus port>
 <your node ip>:<grafana port>
 ```
-  5. [Optional] To monitor Tensorflow serving, manually add a label "model_server: tfserving" to your Kubernetes Pods/Deployments, and apply the  PodMonitor bellow:
+  5. To monitor Tensorflow serving, manually add a label "model_server: tfserving" to your Kubernetes Pods/Deployments, and apply the  PodMonitor bellow:
  ```
 cat <<EOF | kubectl apply -f -
 apiVersion: monitoring.coreos.com/v1

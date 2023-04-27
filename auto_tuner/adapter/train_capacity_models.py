@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
 from auto_tuner import AUTO_TUNER_DIRECTORY
 
 os.system(f"mkdir -p {AUTO_TUNER_DIRECTORY}/adapter/capacity_models")
@@ -33,8 +34,12 @@ for version in versions:
         X_test = np.array(df_sla[df_sla["ARCH"] == version]["CPU"]).reshape(-1, 1)
 
         y_pred = model.predict(X_test)
+        r2s = r2_score(df_sla[df_sla["ARCH"] == version]["capacity"], y_pred)
+        mse = mean_squared_error(df_sla[df_sla["ARCH"] == version]["capacity"], y_pred)
+        print(f"Resnet{version}, MSE: {mse}, R2Score: {r2s}")
+        
         plt.title(f"capacity prediction for resnet{version}. SLA={sla}")
-        plt.plot(list(range(1, 21)), y_pred, "bo", label="prediction")
+        plt.plot(list(range(1, 21)), y_pred, label="prediction")
         plt.plot(list(range(1, 21)), df_sla[df_sla["ARCH"] == version]["capacity"], "go", label="profiled")
         plt.xlabel("CPU cores")
         plt.ylabel("capacity")
