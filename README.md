@@ -36,3 +36,16 @@ insructions at [here](./examples/torch-resnet-kserve/example6/build_nfs_server.m
 - Kubernetes
 - TensorFlow Serving
 - Prometheus
+
+## Citation
+Please use the following citation if you use this framework:
+
+```
+@inproceedings{salmani2023reconciling,
+  title={Reconciling High Accuracy, Cost-Efficiency, and Low Latency of Inference Serving Systems},
+  author={Salmani, Mehran and Ghafouri, Saeid and Sanaee, Alireza and Razavi, Kamran and M{\"u}hlh{\"a}user, Max and Doyle, Joseph and Jamshidi, Pooyan and Sharifi, Mohsen},
+  booktitle={Proceedings of the 3rd Workshop on Machine Learning and Systems},
+  pages={78--86},
+  year={2023}
+}
+```
